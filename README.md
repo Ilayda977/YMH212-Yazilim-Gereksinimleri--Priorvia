@@ -1,0 +1,1 @@
+# YMH212-Yazilim-Gereksinimleri--Priorvia
