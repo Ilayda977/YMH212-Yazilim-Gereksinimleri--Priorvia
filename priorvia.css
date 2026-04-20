@@ -181,16 +181,21 @@ h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.18; }
 .logo {
   display: flex;
   align-items: center;
-  gap: 9px;
   flex-shrink: 0;
 }
-.logo-text {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.2rem;
-  color: var(--green-900);
-  letter-spacing: -0.02em;
+
+/* Logo görseli — scroll öncesi ve sonrası farklı filtre */
+.logo-img {
+  height: 38px;
+  width: auto;
+  /* Beyaz logo, açık arka planda görünsün diye yeşile çevir */
+  /* filter: invert(29%) sepia(50%) saturate(500%) hue-rotate(110deg);
+  transition: filter var(--transition); */
 }
+/* Scroll olmadan hero üzerindeyken beyaz kalsın */
+/* .navbar:not(.scrolled) .logo-img {
+  /* filter: brightness(0) invert(1); */
+/* } */ 
 
 .nav-links {
   display: flex;
