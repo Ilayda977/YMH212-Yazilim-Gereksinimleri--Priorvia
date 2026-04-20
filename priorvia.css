@@ -175,7 +175,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.18; }
   height: 68px;
   display: flex;
   align-items: center;
-  gap: 40px;
+  gap: 14px; /* <-- Decrease this from 40px to tighten the space */
 }
 
 .logo {
@@ -722,86 +722,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.18; }
 /* ===========================
    Pricing
 =========================== */
-.pricing {
-  padding: 100px 24px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
 
-.pricing-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-
-.price-card {
-  background: var(--bg-white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 32px 28px;
-  position: relative;
-  transition: box-shadow var(--transition), transform var(--transition);
-}
-.price-card:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); }
-
-.price-card--featured {
-  border-color: var(--green-600);
-  box-shadow: 0 0 0 2px var(--green-200), var(--shadow-md);
-  transform: scale(1.03);
-}
-.price-card--featured:hover { transform: scale(1.03) translateY(-3px); }
-
-.price-badge {
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--green-700);
-  color: white;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 4px 14px;
-  border-radius: 100px;
-  white-space: nowrap;
-}
-
-.price-header { margin-bottom: 24px; }
-.price-header h3 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-.price-amount {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-.price-num {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--green-800);
-}
-
-.price-features {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 28px;
-}
-.price-features li {
-  font-size: 0.88rem;
-  color: var(--text-secondary);
-  display: flex;
-  gap: 8px;
-}
-.price-features li.muted { color: var(--text-muted); opacity: 0.6; }
 
 /* ===========================
    CTA

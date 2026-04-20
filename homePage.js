@@ -37,36 +37,40 @@ revealEls.forEach(el => observer.observe(el));
 
 // ---- Modal helpers ----
 function openModal(id) {
-  document.getElementById(id).classList.add('active');
+  document.getElementById(id)?.classList.add('active');
   document.body.style.overflow = 'hidden';
 }
 function closeModal(id) {
-  document.getElementById(id).classList.remove('active');
+  document.getElementById(id)?.classList.remove('active');
   document.body.style.overflow = '';
 }
 
-// Open Sign In
-document.getElementById('signin-btn').addEventListener('click', () => openModal('signin-modal'));
-document.getElementById('close-signin').addEventListener('click', () => closeModal('signin-modal'));
+// Open Sign In (Using ?. prevents errors if the button isn't on the page)
+document.getElementById('signin-btn')?.addEventListener('click', (e) => { e.preventDefault(); openModal('signin-modal'); });
+document.getElementById('close-signin')?.addEventListener('click', () => closeModal('signin-modal'));
 
 // Open Sign Up
-document.getElementById('signup-btn').addEventListener('click',   () => openModal('signup-modal'));
-document.getElementById('hero-signup').addEventListener('click',  () => openModal('signup-modal'));
-document.getElementById('cta-btn').addEventListener('click',      () => openModal('signup-modal'));
-document.getElementById('free-plan-btn').addEventListener('click',() => openModal('signup-modal'));
-document.getElementById('team-plan-btn').addEventListener('click',() => openModal('signup-modal'));
-document.getElementById('close-signup').addEventListener('click', () => closeModal('signup-modal'));
-document.getElementById('enterprise-btn').addEventListener('click',() => {
+document.getElementById('signup-btn')?.addEventListener('click', (e) => { e.preventDefault(); openModal('signup-modal'); });
+document.getElementById('hero-signup')?.addEventListener('click', (e) => { e.preventDefault(); openModal('signup-modal'); });
+document.getElementById('cta-btn')?.addEventListener('click', (e) => { e.preventDefault(); openModal('signup-modal'); });
+document.getElementById('free-plan-btn')?.addEventListener('click', (e) => { e.preventDefault(); openModal('signup-modal'); });
+document.getElementById('team-plan-btn')?.addEventListener('click', (e) => { e.preventDefault(); openModal('signup-modal'); });
+document.getElementById('close-signup')?.addEventListener('click', () => closeModal('signup-modal'));
+document.getElementById('enterprise-btn')?.addEventListener('click', (e) => {
+  e.preventDefault();
   closeModal('signup-modal');
-  showToast('Kısa sürede sizinle iletişime geçeceğiz!');
+  // showToast('Kısa sürede sizinle iletişime geçeceğiz!'); // Uncomment if you have this function
 });
 
 // Switch between modals
-document.getElementById('go-signup').addEventListener('click', () => {
+document.getElementById('go-signup')?.addEventListener('click', (e) => {
+  e.preventDefault(); // Stops the link from refreshing the page
   closeModal('signin-modal');
   openModal('signup-modal');
 });
-document.getElementById('go-signin').addEventListener('click', () => {
+
+document.getElementById('go-signin')?.addEventListener('click', (e) => {
+  e.preventDefault(); // Stops the link from refreshing the page
   closeModal('signup-modal');
   openModal('signin-modal');
 });
