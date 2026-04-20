@@ -5,5 +5,7 @@ Priorvia is a simple, fast, and powerful task management platform designed speci
 Technologies Used
 
 HTML5: Semantic structure and accessible elements.
+
 CSS3: Custom variables, Flexbox layouts, animations, and responsive design.
-Vanilla JavaScript: DOM manipulation, event listeners, and modal state management
+
+JavaScript: DOM manipulation, event listeners, and modal state management
