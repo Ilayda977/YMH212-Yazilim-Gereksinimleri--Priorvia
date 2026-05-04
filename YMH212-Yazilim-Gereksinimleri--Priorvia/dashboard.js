@@ -1,17 +1,55 @@
 /* ================================================
-   PRIORVIA — dashboard.js  v2
-   + Dark/Light Mode
-   + Rol Sistemi (PM / Ekip Üyesi / Görüntüleyici)
-   + Ekip Yönetimi & Davet Paneli
+   PRIORVIA — dashboard.js  v3
+   + Projeler (Kronolojik, Üyeler, Yeni Proje)
+   + Görevlerim (Sadece atanan)
+   + Takvim
+   + Arşiv (PM Onayı)
+   + Bildirimler (Tam Liste)
+   + Gelişmiş Koyu Mod
+   + Backend Auth Entegrasyonu
    ================================================ */
 
+/* ── BACKEND KONTROL ──────────────────────────── */
+var token = localStorage.getItem('token');
+if (!token) {
+  window.location.href = 'homePage.html';
+}
+
+/* ── LOGOUT ───────────────────────────────────── */
+// Cikis butonlarini backend'e bagla
+document.addEventListener('DOMContentLoaded', function() {
+  // Sidebar cikis butonu
+  var logoutBtns = document.querySelectorAll('.db-logout-btn, a[href="homePage.html"]');
+  logoutBtns.forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      localStorage.removeItem('token');
+      window.location.href = 'homePage.html';
+    });
+  });
+});
+
 /* ── STATE ────────────────────────────────────── */
-var tasks      = JSON.parse(localStorage.getItem('priorvia_tasks')    || '[]');
-var activities = JSON.parse(localStorage.getItem('priorvia_activity') || '[]');
-var teamMembers= JSON.parse(localStorage.getItem('priorvia_team')     || '[]');
-var dragId     = null;
-var editId     = null;
-var darkMode   = localStorage.getItem('priorvia_dark') === '1';
+var tasks       = JSON.parse(localStorage.getItem('priorvia_tasks')    || '[]');
+var activities  = JSON.parse(localStorage.getItem('priorvia_activity') || '[]');
+var teamMembers = JSON.parse(localStorage.getItem('priorvia_team')     || '[]');
+var projects    = JSON.parse(localStorage.getItem('priorvia_projects') || '[]');
+var archived    = JSON.parse(localStorage.getItem('priorvia_archive')  || '[]');
+var notifications = JSON.parse(localStorage.getItem('priorvia_notifs')  || '[]');
+var dragId      = null;
+var editId      = null;
+var calDate     = new Date();
+var darkMode    = localStorage.getItem('priorvia_dark') === '1';
+
+/* Aktif kullanici - backendden gelir */
+var _rawUser = localStorage.getItem('priorvia_user') || 'Kullanici';
+var currentUser;
+try {
+  var _parsed = JSON.parse(_rawUser);
+  currentUser = _parsed.name || _parsed.email || _rawUser;
+} catch(e) {
+  currentUser = _rawUser;
+}
 
 /* ── INIT ─────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', function() {
@@ -20,20 +58,36 @@ document.addEventListener('DOMContentLoaded', function() {
   initDropdowns();
   initDrawer();
   initInviteDrawer();
+  initProjectDrawer();
   initFilters();
   initNavViews();
   initThemeToggle();
+  initCalendar();
   render();
   renderTeam();
+  renderProjects();
+  renderMyTasks();
+  renderNotificationsFull();
+  renderArchive();
   updateWelcome();
+  updateUserInfo();
 });
 
 /* ── THEME ────────────────────────────────────── */
 function applyTheme() {
   if (darkMode) {
     document.body.classList.add('dark-mode');
-    var icon = document.getElementById('themeIcon');
-    if (icon) icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    setThemeIcon(true);
+  }
+}
+
+function setThemeIcon(isDark) {
+  var icon = document.getElementById('themeIcon');
+  if (!icon) return;
+  if (isDark) {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  } else {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
   }
 }
 
@@ -42,60 +96,85 @@ function initThemeToggle() {
     darkMode = !darkMode;
     localStorage.setItem('priorvia_dark', darkMode ? '1' : '0');
     document.body.classList.toggle('dark-mode', darkMode);
-    var icon = document.getElementById('themeIcon');
-    if (darkMode) {
-      icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-    } else {
-      icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-    }
+    setThemeIcon(darkMode);
   });
+}
+
+/* ── USER INFO ────────────────────────────────── */
+function updateUserInfo() {
+  var profile = getMyProfile();
+  var displayName = profile.name || currentUser;
+  var ini = displayName.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  setText('sidebarAvatar', ini);
+  setText('sidebarName', displayName);
+  setText('sidebarRole', 'Proje Yoneticisi');
+  setText('topbarAvatar', ini);
+  setText('topbarName', displayName.split(' ')[0]);
+}
+
+function getMyProfile() {
+  return JSON.parse(localStorage.getItem('priorvia_myprofile') || 'null') || {
+    name: currentUser, email: '', phone: '', github: ''
+  };
+}
+
+function saveMyProfile(data) {
+  localStorage.setItem('priorvia_myprofile', JSON.stringify(data));
+  currentUser = data.name;
+  localStorage.setItem('priorvia_user', data.name);
+  updateUserInfo();
 }
 
 /* ── NAV VIEWS ────────────────────────────────── */
 function initNavViews() {
-  var navTeam = document.getElementById('navTeam');
-  if (navTeam) {
-    navTeam.addEventListener('click', function(e) {
-      e.preventDefault();
-      showView('team');
-    });
-  }
-  // Dashboard link
-  document.querySelectorAll('.db-nav-item').forEach(function(item) {
+  document.querySelectorAll('.db-nav-item[data-view]').forEach(function(item) {
     item.addEventListener('click', function(e) {
-      if (this === navTeam) return;
-      if (this.getAttribute('href') === 'dashboard.html' || this.getAttribute('href') === '#') {
-        if (this.querySelector('.db-nav-text') && this.querySelector('.db-nav-text').textContent.trim() === 'Dashboard') {
-          e.preventDefault();
-          showView('dashboard');
-        }
-      }
+      e.preventDefault();
+      showView(this.dataset.view);
     });
   });
 }
 
 function showView(view) {
-  var vDash = document.getElementById('viewDashboard');
-  var vTeam = document.getElementById('viewTeam');
-  var bc    = document.getElementById('breadcrumbCurrent');
+  document.querySelectorAll('.db-drawer').forEach(function(d){ d.classList.remove('open'); });
+  document.getElementById('dbOverlay').classList.remove('open');
+  editId = null;
+
+  var allViewIds = ['viewDashboard','viewProjects','viewMyTasks','viewTeam','viewNotifications','viewCalendar','viewArchive','viewMyprofile'];
+  allViewIds.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
   document.querySelectorAll('.db-nav-item').forEach(function(i){ i.classList.remove('active'); });
+  var navEl = document.querySelector('.db-nav-item[data-view="' + view + '"]');
+  if (navEl) navEl.classList.add('active');
 
-  if (view === 'team') {
-    if (vDash) vDash.style.display = 'none';
-    if (vTeam) vTeam.style.display = '';
-    if (bc) bc.textContent = 'Ekip & Yetkiler';
-    var navTeam = document.getElementById('navTeam');
-    if (navTeam) navTeam.classList.add('active');
-    renderTeam();
-  } else {
-    if (vTeam) vTeam.style.display = 'none';
-    if (vDash) vDash.style.display = '';
-    if (bc) bc.textContent = 'Dashboard';
-    var dashNav = document.querySelector('.db-nav-item[href="dashboard.html"]');
-    if (dashNav) dashNav.classList.add('active');
-  }
+  var labels = {
+    dashboard: 'Dashboard', projects: 'Projeler', mytasks: 'Gorevlerim',
+    team: 'Ekip & Yetkiler', notifications: 'Bildirimler',
+    calendar: 'Takvim', archive: 'Arsiv', myprofile: 'Profilim'
+  };
+  setText('breadcrumbCurrent', labels[view] || view);
+
+  var viewMap = {
+    dashboard: 'viewDashboard', projects: 'viewProjects', mytasks: 'viewMyTasks',
+    team: 'viewTeam', notifications: 'viewNotifications',
+    calendar: 'viewCalendar', archive: 'viewArchive', myprofile: 'viewMyprofile'
+  };
+  var el = document.getElementById(viewMap[view]);
+  if (el) el.style.display = '';
+
+  if (view === 'projects')      renderProjects();
+  if (view === 'mytasks')       renderMyTasks();
+  if (view === 'team')          renderTeam();
+  if (view === 'notifications') renderNotificationsFull();
+  if (view === 'calendar')      renderCalendar();
+  if (view === 'archive')       renderArchive();
+  if (view === 'myprofile')     renderMyProfile();
 }
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 /* ── SIDEBAR ──────────────────────────────────── */
 function initSidebar() {
@@ -137,7 +216,7 @@ function initDrawer() {
   document.getElementById('newTaskBtn').addEventListener('click', function(){ openDrawer('todo'); });
   document.getElementById('drawerClose').addEventListener('click', closeDrawer);
   document.getElementById('drawerCancel').addEventListener('click', closeDrawer);
-  document.getElementById('dbOverlay').addEventListener('click', closeDrawer);
+  document.getElementById('dbOverlay').addEventListener('click', closeAllDrawers);
 
   document.getElementById('fStatus').addEventListener('change', function(e) {
     var pg = document.getElementById('progressGroup');
@@ -153,11 +232,24 @@ function initDrawer() {
   });
 }
 
+function populateProjectDropdown(selectedId) {
+  var sel = document.getElementById('fProject');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Proje Secin —</option>';
+  projects.forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.id === selectedId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
 function openDrawer(defaultStatus) {
   defaultStatus = defaultStatus || 'todo';
   editId = null;
   document.getElementById('editTaskId').value = '';
-  document.getElementById('drawerTitle').textContent = 'Yeni Görev';
+  document.getElementById('drawerTitle').textContent = 'Yeni Gorev';
   document.getElementById('fTitle').value    = '';
   document.getElementById('fDesc').value     = '';
   document.getElementById('fPriority').value = 'med';
@@ -169,6 +261,7 @@ function openDrawer(defaultStatus) {
   document.getElementById('progressGroup').style.display = defaultStatus === 'inprogress' ? 'flex' : 'none';
   document.getElementById('fTitle').classList.remove('err');
   document.getElementById('fTitleErr').classList.remove('show');
+  populateProjectDropdown('');
   document.getElementById('taskDrawer').classList.add('open');
   document.getElementById('dbOverlay').classList.add('open');
   document.getElementById('fTitle').focus();
@@ -179,7 +272,7 @@ function openEditDrawer(id) {
   if (!task) return;
   editId = id;
   document.getElementById('editTaskId').value = id;
-  document.getElementById('drawerTitle').textContent = 'Görevi Düzenle';
+  document.getElementById('drawerTitle').textContent = 'Gorevi Duzenle';
   document.getElementById('fTitle').value    = task.title;
   document.getElementById('fDesc').value     = task.desc || '';
   document.getElementById('fPriority').value = task.priority;
@@ -189,6 +282,7 @@ function openEditDrawer(id) {
   document.getElementById('fProgress').value = task.progress || 0;
   document.getElementById('progressVal').textContent = task.progress || 0;
   document.getElementById('progressGroup').style.display = task.status === 'inprogress' ? 'flex' : 'none';
+  populateProjectDropdown(task.projectId || '');
   document.getElementById('taskDrawer').classList.add('open');
   document.getElementById('dbOverlay').classList.add('open');
   document.getElementById('fTitle').focus();
@@ -196,6 +290,12 @@ function openEditDrawer(id) {
 
 function closeDrawer() {
   document.getElementById('taskDrawer').classList.remove('open');
+  document.getElementById('dbOverlay').classList.remove('open');
+  editId = null;
+}
+
+function closeAllDrawers() {
+  document.querySelectorAll('.db-drawer').forEach(function(d){ d.classList.remove('open'); });
   document.getElementById('dbOverlay').classList.remove('open');
   editId = null;
 }
@@ -208,135 +308,464 @@ function saveTask() {
     return;
   }
   var taskData = {
-    title:    title,
-    desc:     document.getElementById('fDesc').value.trim(),
-    priority: document.getElementById('fPriority').value,
-    date:     document.getElementById('fDate').value,
-    assignee: document.getElementById('fAssignee').value.trim(),
-    status:   document.getElementById('fStatus').value,
-    progress: parseInt(document.getElementById('fProgress').value) || 0,
+    title:     title,
+    desc:      document.getElementById('fDesc').value.trim(),
+    priority:  document.getElementById('fPriority').value,
+    date:      document.getElementById('fDate').value,
+    assignee:  document.getElementById('fAssignee').value.trim(),
+    status:    document.getElementById('fStatus').value,
+    progress:  parseInt(document.getElementById('fProgress').value) || 0,
+    projectId: document.getElementById('fProject').value || ''
   };
+
   if (editId) {
     tasks = tasks.map(function(t){ return t.id === editId ? Object.assign({}, t, taskData) : t; });
-    addActivity('"' + title + '" güncellendi', 'orange');
-    showSaveBar('Görev güncellendi.');
+    addActivity('"' + title + '" guncellendi', 'orange');
+    addNotif('Gorev guncellendi: ' + title, 'update');
+    showSaveBar('Gorev guncellendi.');
   } else {
     taskData.id = Date.now().toString();
     taskData.createdAt = new Date().toISOString();
     tasks.push(taskData);
-    addActivity('Yeni görev: "' + title + '"', 'green');
-    showSaveBar('Görev oluşturuldu.');
+    addActivity('Yeni gorev: "' + title + '"', 'green');
+    addNotif('Yeni gorev olusturuldu: ' + title, 'new');
+    showSaveBar('Gorev olusturuldu.');
   }
+
+  if (taskData.status === 'done') {
+    addNotif('"' + title + '" tamamlandi — PM onayi gerekiyor', 'warn');
+  }
+
   persist();
   render();
+  renderMyTasks();
+  renderProjects();
   closeDrawer();
 }
 
-/* ── INVITE DRAWER ────────────────────────────── */
-function initInviteDrawer() {
-  var inviteBtn = document.getElementById('inviteBtn');
-  if (inviteBtn) inviteBtn.addEventListener('click', openInviteDrawer);
-  document.getElementById('inviteDrawerClose').addEventListener('click', closeInviteDrawer);
-  document.getElementById('inviteCancel').addEventListener('click', closeInviteDrawer);
-  document.getElementById('inviteSave').addEventListener('click', saveInvite);
+/* ── ARCHIVE TASK ─────────────────────────────── */
+function archiveTask(id) {
+  var task = tasks.find(function(t){ return t.id === id; });
+  if (!task) return;
+  if (!confirm('"' + task.title + '" arsive tasınacak. PM olarak onaylıyor musunuz?')) return;
+
+  var archivedTask = Object.assign({}, task, {
+    archivedAt: new Date().toISOString(),
+    archivedBy: currentUser
+  });
+  archived.push(archivedTask);
+  tasks = tasks.filter(function(t){ return t.id !== id; });
+
+  addActivity('"' + task.title + '" arsive tasindi', 'blue');
+  addNotif('"' + task.title + '" PM tarafindan onaylanarak arsive tasindi', 'archive');
+
+  localStorage.setItem('priorvia_archive', JSON.stringify(archived));
+  persist();
+  render();
+  renderArchive();
+  showSaveBar('Gorev arsive tasindi.');
 }
 
-function openInviteDrawer() {
-  document.getElementById('inviteName').value  = '';
-  document.getElementById('inviteEmail').value = '';
-  document.getElementById('inviteRole').value  = 'member';
-  document.getElementById('inviteDrawer').classList.add('open');
-  document.getElementById('dbOverlay').classList.add('open');
-  document.getElementById('inviteName').focus();
-}
-
-function closeInviteDrawer() {
-  document.getElementById('inviteDrawer').classList.remove('open');
-  document.getElementById('dbOverlay').classList.remove('open');
-}
-
-function saveInvite() {
-  var name  = document.getElementById('inviteName').value.trim();
-  var email = document.getElementById('inviteEmail').value.trim();
-  var role  = document.getElementById('inviteRole').value;
-  if (!name) { alert('Ad Soyad zorunludur.'); return; }
-
-  var member = {
-    id:    Date.now().toString(),
-    name:  name,
-    email: email,
-    role:  role,
-    joinedAt: new Date().toISOString()
-  };
-  teamMembers.push(member);
-  localStorage.setItem('priorvia_team', JSON.stringify(teamMembers));
-  addActivity('"' + name + '" ekibe davet edildi', 'blue');
-  renderTeam();
-  closeInviteDrawer();
-  showSaveBar('Davet gönderildi.');
-}
-
-/* ── TEAM RENDER ──────────────────────────────── */
-function renderTeam() {
-  var list = document.getElementById('teamMemberList');
+/* ── ARCHIVE RENDER ───────────────────────────── */
+function renderArchive() {
+  var list = document.getElementById('archiveList');
   if (!list) return;
-
-  var pms     = teamMembers.filter(function(m){ return m.role === 'pm'; }).length;
-  var members = teamMembers.filter(function(m){ return m.role === 'member'; }).length;
-  setText('teamTotalCount', teamMembers.length);
-  setText('teamPMCount', pms);
-  setText('teamMemberCount', members);
-
-  if (teamMembers.length === 0) {
-    list.innerHTML = '<p class="db-empty-sm" style="padding:24px 0">Henüz üye eklenmedi. "Üye Davet Et" butonunu kullanın.</p>';
+  if (archived.length === 0) {
+    list.innerHTML = '<div class="db-empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg><p>Arsivde henuz gorev yok.</p><span>Tamamlanan gorevleri PM onayi ile arsivleyebilirsiniz.</span></div>';
     return;
   }
 
-  var roleLabel = { pm: 'Proje Yöneticisi', member: 'Ekip Üyesi', viewer: 'Görüntüleyici' };
-  var roleCls   = { pm: 'db-role-pm', member: 'db-role-member', viewer: 'db-role-viewer' };
+  var html = '<div class="db-archive-table">';
+  html += '<div class="db-archive-header"><span>GOREV</span><span>ATANAN</span><span>PROJE</span><span>TAMAMLANMA</span><span>ARSIVLEYEN PM</span></div>';
 
-  var html = '<table class="db-team-table"><thead><tr>' +
-    '<th>Üye</th><th>Rol</th><th>Görev Sayısı</th><th>Katılım</th><th></th>' +
-    '</tr></thead><tbody>';
-
-  teamMembers.forEach(function(m) {
-    var taskCount = tasks.filter(function(t){ return t.assignee && t.assignee.toLowerCase() === m.name.toLowerCase(); }).length;
-    var initials  = m.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
-    var joined    = new Date(m.joinedAt).toLocaleDateString('tr-TR', {day:'numeric',month:'short',year:'numeric'});
-    html += '<tr>' +
-      '<td><div class="db-member-cell"><div class="db-team-avatar">' + escHtml(initials) + '</div>' +
-        '<div><div class="db-member-name">' + escHtml(m.name) + '</div>' +
-        (m.email ? '<div class="db-member-email">' + escHtml(m.email) + '</div>' : '') +
-        '</div></div></td>' +
-      '<td><span class="db-role-badge ' + (roleCls[m.role]||'db-role-member') + '">' + (roleLabel[m.role]||m.role) + '</span></td>' +
-      '<td>' + taskCount + ' görev</td>' +
-      '<td>' + joined + '</td>' +
-      '<td><button class="db-remove-btn" onclick="removeMember(\'' + m.id + '\')" title="Üyeyi Çıkar">' +
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
-      '</button></td>' +
-    '</tr>';
+  archived.slice().reverse().forEach(function(t) {
+    var proj = projects.find(function(p){ return p.id === t.projectId; });
+    var archivedDate = new Date(t.archivedAt).toLocaleDateString('tr-TR', {day:'numeric', month:'short', year:'numeric'});
+    var doneDate = t.doneAt ? new Date(t.doneAt).toLocaleDateString('tr-TR', {day:'numeric', month:'short'}) : archivedDate;
+    html += '<div class="db-archive-row">' +
+      '<div class="db-archive-task"><span class="db-archive-check">✓</span><div><div class="db-archive-title">' + escHtml(t.title) + '</div>' +
+      (t.desc ? '<div class="db-archive-desc">' + escHtml(t.desc.substring(0,60)) + (t.desc.length>60?'...':'') + '</div>' : '') +
+      '</div></div>' +
+      '<div>' + (t.assignee ? '<span class="db-card-assignee">' + escHtml(initials(t.assignee)) + '</span> ' + escHtml(t.assignee) : '—') + '</div>' +
+      '<div>' + (proj ? '<span class="db-proj-badge db-proj-' + proj.color + '">' + escHtml(proj.name) + '</span>' : '—') + '</div>' +
+      '<div class="db-archive-date">' + doneDate + '</div>' +
+      '<div class="db-archive-pm"><span class="db-role-badge db-role-pm">' + escHtml(t.archivedBy || currentUser) + '</span></div>' +
+    '</div>';
   });
-
-  html += '</tbody></table>';
+  html += '</div>';
   list.innerHTML = html;
 }
 
-function removeMember(id) {
-  var m = teamMembers.find(function(x){ return x.id === id; });
-  if (!m) return;
-  if (!confirm('"' + m.name + '" ekipten çıkarılacak. Emin misiniz?')) return;
-  teamMembers = teamMembers.filter(function(x){ return x.id !== id; });
-  localStorage.setItem('priorvia_team', JSON.stringify(teamMembers));
-  addActivity('"' + m.name + '" ekipten çıkarıldı', 'orange');
-  renderTeam();
-  showSaveBar('Üye çıkarıldı.');
+/* ── PROJECTS ─────────────────────────────────── */
+function initProjectDrawer() {
+  document.getElementById('newProjectBtn').addEventListener('click', openProjectDrawer);
+  document.getElementById('projectDrawerClose').addEventListener('click', closeProjectDrawer);
+  document.getElementById('projectDrawerCancel').addEventListener('click', closeProjectDrawer);
+  document.getElementById('projectDrawerSave').addEventListener('click', saveProject);
+}
+
+function openProjectDrawer(editProjId) {
+  var isEdit = typeof editProjId === 'string';
+  var proj = isEdit ? projects.find(function(p){ return p.id === editProjId; }) : null;
+
+  document.getElementById('projectDrawerTitle').textContent = isEdit ? 'Projeyi Duzenle' : 'Yeni Proje';
+  document.getElementById('editProjectId').value = isEdit ? editProjId : '';
+  document.getElementById('pName').value     = proj ? proj.name : '';
+  document.getElementById('pDesc').value     = proj ? proj.desc || '' : '';
+  document.getElementById('pBudget').value   = proj ? proj.budget || '' : '';
+  document.getElementById('pDeadline').value = proj ? proj.deadline || '' : '';
+  document.getElementById('pColor').value    = proj ? proj.color || 'blue' : 'blue';
+
+  var cl = document.getElementById('memberCheckList');
+  cl.innerHTML = '';
+  teamMembers.forEach(function(m) {
+    var checked = proj && proj.members && proj.members.indexOf(m.id) !== -1;
+    var label = document.createElement('label');
+    label.className = 'db-member-check' + (checked ? ' checked' : '');
+    label.innerHTML = '<input type="checkbox" value="' + m.id + '"' + (checked ? ' checked' : '') + '> ' +
+      '<span class="db-team-avatar" style="width:24px;height:24px;font-size:10px">' + escHtml(initials(m.name)) + '</span>' +
+      escHtml(m.name);
+    label.querySelector('input').addEventListener('change', function() {
+      label.classList.toggle('checked', this.checked);
+    });
+    cl.appendChild(label);
+  });
+  if (teamMembers.length === 0) {
+    cl.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Once ekip uyesi ekleyin.</p>';
+  }
+
+  document.getElementById('projectDrawer').classList.add('open');
+  document.getElementById('dbOverlay').classList.add('open');
+  document.getElementById('pName').focus();
+}
+
+function closeProjectDrawer() {
+  document.getElementById('projectDrawer').classList.remove('open');
+  document.getElementById('dbOverlay').classList.remove('open');
+}
+
+function saveProject() {
+  var name = document.getElementById('pName').value.trim();
+  if (!name) { alert('Proje adi zorunludur.'); return; }
+
+  var memberIds = [];
+  document.querySelectorAll('#memberCheckList input[type=checkbox]:checked').forEach(function(cb) {
+    memberIds.push(cb.value);
+  });
+
+  var editProjId = document.getElementById('editProjectId').value;
+  var projData = {
+    name:     name,
+    desc:     document.getElementById('pDesc').value.trim(),
+    budget:   parseInt(document.getElementById('pBudget').value) || 0,
+    deadline: document.getElementById('pDeadline').value,
+    color:    document.getElementById('pColor').value,
+    members:  memberIds
+  };
+
+  if (editProjId) {
+    projects = projects.map(function(p){ return p.id === editProjId ? Object.assign({}, p, projData) : p; });
+    addActivity('Proje guncellendi: "' + name + '"', 'blue');
+    showSaveBar('Proje guncellendi.');
+  } else {
+    projData.id = Date.now().toString();
+    projData.createdAt = new Date().toISOString();
+    projects.push(projData);
+    addActivity('Yeni proje: "' + name + '"', 'green');
+    addNotif('Yeni proje olusturuldu: ' + name, 'new');
+    showSaveBar('Proje olusturuldu.');
+  }
+
+  localStorage.setItem('priorvia_projects', JSON.stringify(projects));
+  renderProjects();
+  populateProjectDropdown('');
+  closeProjectDrawer();
+  render();
+}
+
+function deleteProject(id) {
+  var proj = projects.find(function(p){ return p.id === id; });
+  if (!proj) return;
+  if (!confirm('"' + proj.name + '" projesi silinecek. Emin misiniz?')) return;
+  projects = projects.filter(function(p){ return p.id !== id; });
+  localStorage.setItem('priorvia_projects', JSON.stringify(projects));
+  addActivity('"' + proj.name + '" projesi silindi', 'orange');
+  renderProjects();
+  showSaveBar('Proje silindi.');
+}
+
+function renderProjects() {
+  var list = document.getElementById('projectsList');
+  if (!list) return;
+
+  var sorted = projects.slice().sort(function(a, b) {
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+
+  setText('projectCount', projects.length);
+  setText('projectsDoneCount', projects.length + ' proje aktif');
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="db-empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><p>Henuz proje yok.</p><span>Yeni proje olusturmak icin butona tiklayin.</span></div>';
+    return;
+  }
+
+  var colorMap = { blue:'#3b82f6', green:'#22c55e', orange:'#f59e0b', purple:'#8b5cf6', red:'#ef4444' };
+  var html = '';
+
+  sorted.forEach(function(p) {
+    var projTasks = tasks.filter(function(t){ return t.projectId === p.id; });
+    var doneTasks = projTasks.filter(function(t){ return t.status === 'done'; });
+    var completion = projTasks.length > 0 ? Math.round((doneTasks.length / projTasks.length) * 100) : 0;
+    var color = colorMap[p.color] || colorMap.blue;
+
+    var memberHtml = '';
+    var projMembers = teamMembers.filter(function(m){ return p.members && p.members.indexOf(m.id) !== -1; });
+    projMembers.slice(0,4).forEach(function(m) {
+      memberHtml += '<div class="db-proj-avatar" title="' + escHtml(m.name) + '">' + escHtml(initials(m.name)) + '</div>';
+    });
+    if (projMembers.length > 4) memberHtml += '<div class="db-proj-avatar db-proj-more">+' + (projMembers.length-4) + '</div>';
+
+    var createdDate = new Date(p.createdAt).toLocaleDateString('tr-TR', {day:'numeric', month:'short', year:'numeric'});
+
+    html += '<div class="db-proj-row">' +
+      '<div class="db-proj-info">' +
+        '<div class="db-proj-icon" style="background:' + color + '22;color:' + color + '">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+        '</div>' +
+        '<div><div class="db-proj-name">' + escHtml(p.name) + '</div><div class="db-proj-meta">' + projTasks.length + ' gorev · ' + createdDate + '</div></div>' +
+      '</div>' +
+      '<div class="db-proj-members">' + (memberHtml || '<span style="color:var(--text-muted);font-size:12px">—</span>') + '</div>' +
+      '<div class="db-proj-budget">' + (p.budget > 0 ? '$' + p.budget.toLocaleString() : '<span style="color:#f59e0b;font-size:12px">Belirlenmedi</span>') + '</div>' +
+      '<div class="db-proj-completion">' +
+        '<div class="db-proj-progress-bar"><div class="db-proj-progress-fill" style="width:' + completion + '%;background:' + color + '"></div></div>' +
+        '<span class="db-proj-pct" style="color:' + color + '">%' + completion + '</span>' +
+      '</div>' +
+      '<div class="db-proj-actions">' +
+        '<button class="db-card-btn" title="Duzenle" onclick="openProjectDrawer(\'' + p.id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>' +
+        '<button class="db-card-btn danger" title="Sil" onclick="deleteProject(\'' + p.id + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>' +
+      '</div>' +
+    '</div>';
+  });
+
+  list.innerHTML = html;
+}
+
+/* ── MY TASKS ─────────────────────────────────── */
+function renderMyTasks() {
+  var list = document.getElementById('myTasksList');
+  if (!list) return;
+
+  var myTasks = tasks.filter(function(t) {
+    return t.assignee && t.assignee.toLowerCase() === currentUser.toLowerCase();
+  });
+
+  setText('myTaskCount', myTasks.length);
+
+  if (myTasks.length === 0) {
+    list.innerHTML = '<div class="db-empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>Size atanan gorev yok.</p><span>Atanan kisi olarak adinizi kullandiginizda gorevler burada gorünur.</span></div>';
+    return;
+  }
+
+  var statusOrder = { todo: 0, inprogress: 1, done: 2 };
+  myTasks.sort(function(a,b){ return statusOrder[a.status] - statusOrder[b.status]; });
+
+  var html = '<div class="db-mytasks-grid">';
+  myTasks.forEach(function(task) {
+    var proj = projects.find(function(p){ return p.id === task.projectId; });
+    var pLabel = { high:'YUKSEK', med:'ORTA', low:'DUSUK' }[task.priority] || '';
+    var statusLabel = { todo:'Yapilacak', inprogress:'Devam Ediyor', done:'Tamamlandi' }[task.status] || '';
+    var statusCls = { todo:'mt-todo', inprogress:'mt-prog', done:'mt-done' }[task.status] || '';
+    var today = new Date(); today.setHours(0,0,0,0);
+    var isOverdue = task.date && new Date(task.date) < today && task.status !== 'done';
+
+    html += '<div class="db-mytask-card' + (task.status==='done'?' db-card-done':'') + '">' +
+      '<div class="db-card-top"><span class="priority-tag ' + task.priority + '">' + pLabel + '</span><span class="db-mt-status ' + statusCls + '">' + statusLabel + '</span></div>' +
+      '<div class="db-card-title">' + escHtml(task.title) + '</div>' +
+      (task.desc ? '<div class="db-mytask-desc">' + escHtml(task.desc.substring(0,80)) + (task.desc.length>80?'...':'') + '</div>' : '') +
+      '<div class="db-card-meta">' +
+        (task.date ? '<span class="db-card-date' + (isOverdue?' overdue':'') + '"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' + formatDate(new Date(task.date)) + (isOverdue?' ?':'') + '</span>' : '') +
+        (proj ? '<span class="db-proj-badge db-proj-' + proj.color + '">' + escHtml(proj.name) + '</span>' : '') +
+      '</div>' +
+      '<div class="db-mytask-actions">' +
+        '<button class="db-card-btn" onclick="openEditDrawer(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Duzenle</button>' +
+        (task.status === 'done' ? '<button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="archiveTask(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg> Arsivle (PM)</button>' : '') +
+      '</div>' +
+    '</div>';
+  });
+  html += '</div>';
+  list.innerHTML = html;
+}
+
+/* ── NOTIFICATIONS ────────────────────────────── */
+function addNotif(text, type) {
+  notifications.unshift({ id: Date.now().toString(), text: text, type: type || 'info', time: Date.now(), read: false });
+  if (notifications.length > 50) notifications.pop();
+  localStorage.setItem('priorvia_notifs', JSON.stringify(notifications));
+  updateNotifBadge();
+}
+
+function clearNotifs() {
+  notifications = [];
+  localStorage.setItem('priorvia_notifs', JSON.stringify(notifications));
+  updateNotifBadge();
+  renderNotificationsFull();
+}
+
+function markNotifRead(id) {
+  notifications = notifications.map(function(n){ return n.id===id ? Object.assign({},n,{read:true}) : n; });
+  localStorage.setItem('priorvia_notifs', JSON.stringify(notifications));
+  updateNotifBadge();
+  renderNotificationsFull();
+}
+
+function updateNotifBadge() {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+  var urgent = tasks.filter(function(t){ return t.date && t.status !== 'done' && new Date(t.date) <= tomorrow; });
+  var unread = notifications.filter(function(n){ return !n.read; }).length;
+  var total = urgent.length + unread;
+
+  setText('notifBadge', total > 0 ? total : 0);
+  var dot = document.getElementById('notifDot');
+  if (dot) dot.style.display = total > 0 ? 'block' : 'none';
+  setText('notifDropCount', total);
+
+  var notifList = document.getElementById('notifList');
+  if (!notifList) return;
+
+  var allNotifs = [];
+  urgent.forEach(function(t) {
+    var d = new Date(t.date); var today2 = new Date(); today2.setHours(0,0,0,0);
+    var ov = d < today2;
+    allNotifs.push({ text: (ov ? '? Gecikmis: ' : '? Yaklasan: ') + t.title, type: ov ? 'warn' : 'info', time: Date.now() });
+  });
+  notifications.filter(function(n){ return !n.read; }).slice(0,5).forEach(function(n){ allNotifs.push(n); });
+
+  if (allNotifs.length === 0) { notifList.innerHTML = '<p class="db-empty-sm">Henuz bildirim yok.</p>'; return; }
+
+  var typeIcon = { new:{ icon:'✦', cls:'db-ni-green' }, update:{ icon:'✎', cls:'db-ni-blue' }, warn:{ icon:'?', cls:'db-ni-orange' }, archive:{ icon:'▦', cls:'db-ni-purple' }, info:{ icon:'ℹ', cls:'db-ni-blue' } };
+
+  notifList.innerHTML = allNotifs.slice(0,8).map(function(n) {
+    var ti = typeIcon[n.type] || typeIcon.info;
+    return '<div class="db-notif-item unread"><div class="db-notif-icon ' + ti.cls + '">' + ti.icon + '</div>' +
+      '<div><div class="db-notif-title">' + escHtml(n.text) + '</div><div class="db-notif-time">' + timeAgo(n.time) + '</div></div></div>';
+  }).join('');
+}
+
+function renderNotificationsFull() {
+  var list = document.getElementById('notifFullList');
+  if (!list) return;
+
+  var today = new Date(); today.setHours(0,0,0,0);
+  var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+  var urgentTasks = tasks.filter(function(t){ return t.date && t.status !== 'done' && new Date(t.date) <= tomorrow; });
+
+  var allNotifs = [];
+  urgentTasks.forEach(function(t) {
+    var d = new Date(t.date); var tod = new Date(); tod.setHours(0,0,0,0);
+    var ov = d < tod;
+    allNotifs.push({ id: 'task_' + t.id, text: (ov ? 'Gecikmis gorev: ' : 'Yaklasan teslim: ') + t.title + ' — ' + formatDate(d), type: ov?'warn':'info', time: Date.now(), read: false });
+  });
+  notifications.forEach(function(n){ allNotifs.push(n); });
+
+  if (allNotifs.length === 0) {
+    list.innerHTML = '<div class="db-empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><p>Bildirim yok.</p></div>';
+    return;
+  }
+
+  var typeIcon = { new:'✦', update:'✎', warn:'?', archive:'▦', info:'ℹ' };
+  var typeCls  = { new:'db-ni-green', update:'db-ni-blue', warn:'db-ni-orange', archive:'db-ni-purple', info:'db-ni-blue' };
+  var typeLabel = { new:'Yeni', update:'Guncelleme', warn:'Uyari', archive:'Arsiv', info:'Bilgi' };
+
+  list.innerHTML = '<div class="db-notif-full-grid">' + allNotifs.map(function(n) {
+    var ti = typeIcon[n.type] || 'ℹ';
+    var tc = typeCls[n.type] || 'db-ni-blue';
+    var tl = typeLabel[n.type] || 'Bilgi';
+    return '<div class="db-notif-full-row' + (n.read?'':' unread') + '" onclick="markNotifRead(\'' + n.id + '\')">' +
+      '<div class="db-notif-icon ' + tc + '" style="width:36px;height:36px;font-size:16px">' + ti + '</div>' +
+      '<div style="flex:1"><div class="db-notif-title">' + escHtml(n.text) + '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:3px"><span class="db-role-badge" style="background:var(--green-100);color:var(--green-700)">' + tl + '</span><span class="db-notif-time">' + timeAgo(n.time) + '</span></div>' +
+      '</div>' + (!n.read ? '<div class="db-unread-dot"></div>' : '') +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+/* ── CALENDAR ─────────────────────────────────── */
+function initCalendar() {
+  var monthNames = ['Ocak','Subat','Mart','Nisan','Mayis','Haziran','Temmuz','Agustos','Eylul','Ekim','Kasim','Aralik'];
+  var mSel = document.getElementById('calMonthSelect');
+  monthNames.forEach(function(name, i) {
+    var opt = document.createElement('option');
+    opt.value = i; opt.textContent = name;
+    mSel.appendChild(opt);
+  });
+  var ySel = document.getElementById('calYearSelect');
+  var currentYear = new Date().getFullYear();
+  for (var y = currentYear - 5; y <= currentYear + 5; y++) {
+    var opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    ySel.appendChild(opt);
+  }
+  mSel.value = calDate.getMonth();
+  ySel.value = calDate.getFullYear();
+  mSel.addEventListener('change', function() { calDate.setMonth(parseInt(this.value)); renderCalendar(); });
+  ySel.addEventListener('change', function() { calDate.setFullYear(parseInt(this.value)); renderCalendar(); });
+  document.getElementById('calPrev').addEventListener('click', function() { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); });
+  document.getElementById('calNext').addEventListener('click', function() { calDate.setMonth(calDate.getMonth() + 1); renderCalendar(); });
+}
+
+function renderCalendar() {
+  var grid = document.getElementById('calendarGrid');
+  if (!grid) return;
+  var year = calDate.getFullYear();
+  var month = calDate.getMonth();
+  var monthNames = ['Ocak','Subat','Mart','Nisan','Mayis','Haziran','Temmuz','Agustos','Eylul','Ekim','Kasim','Aralik'];
+  var dayNames = ['Pzt','Sal','Car','Per','Cum','Cmt','Paz'];
+  var mSel = document.getElementById('calMonthSelect');
+  var ySel = document.getElementById('calYearSelect');
+  if (mSel) mSel.value = month;
+  if (ySel) { if (!ySel.querySelector('option[value="' + year + '"]')) { var opt = document.createElement('option'); opt.value = year; opt.textContent = year; ySel.appendChild(opt); } ySel.value = year; }
+  setText('calendarMonthLabel', monthNames[month] + ' ' + year);
+  var firstDay = new Date(year, month, 1).getDay();
+  var startOffset = (firstDay === 0) ? 6 : firstDay - 1;
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var today = new Date(); today.setHours(0,0,0,0);
+  var tasksByDate = {};
+  tasks.forEach(function(t) {
+    if (!t.date) return;
+    var d = new Date(t.date);
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      var key = d.getDate();
+      if (!tasksByDate[key]) tasksByDate[key] = [];
+      tasksByDate[key].push(t);
+    }
+  });
+  var html = '<div class="db-cal-daynames">';
+  dayNames.forEach(function(d){ html += '<div class="db-cal-dayname">' + d + '</div>'; });
+  html += '</div><div class="db-cal-grid">';
+  for (var i = 0; i < startOffset; i++) { html += '<div class="db-cal-cell db-cal-empty"></div>'; }
+  for (var day = 1; day <= daysInMonth; day++) {
+    var dayTasks = tasksByDate[day] || [];
+    var cellDate = new Date(year, month, day);
+    var isToday = cellDate.getTime() === today.getTime();
+    var cls = 'db-cal-cell' + (isToday ? ' db-cal-today' : '') + (dayTasks.length > 0 ? ' db-cal-has-tasks' : '');
+    html += '<div class="' + cls + '"><span class="db-cal-day-num' + (isToday ? ' today-num' : '') + '">' + day + '</span>';
+    dayTasks.slice(0,3).forEach(function(t) {
+      var color = { high:'#ef4444', med:'#f59e0b', low:'#22c55e' }[t.priority] || '#94a3b8';
+      html += '<div class="db-cal-task-dot" style="border-left:3px solid ' + color + '" title="' + escHtml(t.title) + '">' + escHtml(t.title.substring(0,22)) + (t.title.length>22?'...':'') + '</div>';
+    });
+    if (dayTasks.length > 3) html += '<div class="db-cal-more">+' + (dayTasks.length-3) + ' daha</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  grid.innerHTML = html;
 }
 
 /* ── RENDER KANBAN ────────────────────────────── */
 function render() {
   var priority = (document.getElementById('filterPriority')||{}).value || '';
   var assignee = (document.getElementById('filterAssignee')||{}).value || '';
-
   var filtered = tasks.slice();
   if (priority) filtered = filtered.filter(function(t){ return t.priority === priority; });
   if (assignee) filtered = filtered.filter(function(t){ return t.assignee === assignee; });
@@ -349,12 +778,8 @@ function render() {
     var colTasks = filtered.filter(function(t){ return t.status === col; });
     if (count) count.textContent = colTasks.length;
     list.querySelectorAll('.db-task-card').forEach(function(el){ el.remove(); });
-    if (colTasks.length === 0) {
-      if (empty) empty.style.display = 'block';
-    } else {
-      if (empty) empty.style.display = 'none';
-      colTasks.forEach(function(task){ list.appendChild(buildCard(task)); });
-    }
+    if (colTasks.length === 0) { if (empty) empty.style.display = 'block'; }
+    else { if (empty) empty.style.display = 'none'; colTasks.forEach(function(task){ list.appendChild(buildCard(task)); }); }
   });
 
   updateStats();
@@ -372,32 +797,34 @@ function buildCard(task) {
   card.draggable = true;
   card.addEventListener('dragstart', function(){ dragId = task.id; });
 
-  var pLabel = { high: 'YÜKSEK', med: 'ORTA', low: 'DÜŞÜK' }[task.priority] || '';
-
+  var pLabel = { high:'YUKSEK', med:'ORTA', low:'DUSUK' }[task.priority] || '';
   var progressHTML = '';
   if (task.status === 'inprogress' && task.progress > 0) {
     progressHTML = '<div class="db-card-progress"><div class="db-card-prog-bar"><div class="db-card-prog-fill" style="width:' + task.progress + '%"></div></div><span class="db-card-prog-label">%' + task.progress + '</span></div>';
   }
-
   var dateHTML = '';
   if (task.date) {
     var d = new Date(task.date);
     var today = new Date(); today.setHours(0,0,0,0);
     var isOverdue = d < today && task.status !== 'done';
-    dateHTML = '<span class="db-card-date' + (isOverdue ? ' overdue' : '') + '"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' + formatDate(d) + (isOverdue ? ' ⚠' : '') + '</span>';
+    dateHTML = '<span class="db-card-date' + (isOverdue ? ' overdue' : '') + '"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' + formatDate(d) + (isOverdue ? ' ?' : '') + '</span>';
   }
-
+  var proj = projects.find(function(p){ return p.id === task.projectId; });
+  var projHTML = proj ? '<span class="db-proj-badge db-proj-' + proj.color + '">' + escHtml(proj.name.substring(0,12)) + '</span>' : '';
   var assigneeHTML = task.assignee ? '<span class="db-card-assignee">' + escHtml(initials(task.assignee)) + '</span>' : '';
+  var archiveBtn = task.status === 'done'
+    ? '<button class="db-card-btn" title="Arsivle (PM)" onclick="archiveTask(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg></button>'
+    : '';
 
   card.innerHTML =
     '<div class="db-card-top"><span class="priority-tag ' + task.priority + '">' + pLabel + '</span>' +
-    '<div class="db-card-actions">' +
-      '<button class="db-card-btn" title="Düzenle" onclick="openEditDrawer(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>' +
+    '<div class="db-card-actions">' + archiveBtn +
+      '<button class="db-card-btn" title="Duzenle" onclick="openEditDrawer(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>' +
       '<button class="db-card-btn danger" title="Sil" onclick="deleteTask(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>' +
     '</div></div>' +
     '<div class="db-card-title">' + escHtml(task.title) + '</div>' +
     progressHTML +
-    '<div class="db-card-meta">' + dateHTML + assigneeHTML + '</div>';
+    '<div class="db-card-meta">' + dateHTML + '<div style="display:flex;gap:4px;align-items:center">' + projHTML + assigneeHTML + '</div></div>';
 
   return card;
 }
@@ -408,11 +835,14 @@ function onDrop(e, col) {
   if (!dragId) return;
   var task = tasks.find(function(t){ return t.id === dragId; });
   tasks = tasks.map(function(t){ return t.id === dragId ? Object.assign({}, t, {status: col}) : t; });
-  if (task) addActivity('"' + task.title + '" → ' + colLabel(col), 'blue');
+  if (task) {
+    addActivity('"' + task.title + '" → ' + colLabel(col), 'blue');
+    if (col === 'done') addNotif('"' + task.title + '" tamamlandi — PM onayi bekliyor', 'warn');
+  }
   dragId = null;
   persist();
   render();
-  showSaveBar('Görev taşındı.');
+  showSaveBar('Gorev tasindi.');
 }
 
 /* ── DELETE ───────────────────────────────────── */
@@ -424,7 +854,7 @@ function deleteTask(id) {
   addActivity('"' + task.title + '" silindi', 'orange');
   persist();
   render();
-  showSaveBar('Görev silindi.');
+  showSaveBar('Gorev silindi.');
 }
 
 /* ── STATS ────────────────────────────────────── */
@@ -435,7 +865,6 @@ function updateStats() {
   var rate   = total > 0 ? Math.round((done / total) * 100) : 0;
   setText('statTotal', total); setText('statInProgress', inprog);
   setText('statDone', done);   setText('statRate', '%' + rate);
-  setText('myTaskCount', total); setText('projectCount', 1);
   var bar = document.getElementById('miniProgressFill');
   if (bar) bar.style.width = rate + '%';
 }
@@ -447,13 +876,13 @@ function updateAlerts() {
   var today = new Date(); today.setHours(0,0,0,0);
   var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
   var urgent = tasks.filter(function(t){ return t.date && t.status !== 'done' && new Date(t.date) <= tomorrow; });
-  if (urgent.length === 0) { list.innerHTML = '<p class="db-empty-sm">Yaklaşan teslim tarihi yok.</p>'; return; }
+  if (urgent.length === 0) { list.innerHTML = '<p class="db-empty-sm">Yaklasan teslim tarihi yok.</p>'; return; }
   list.innerHTML = urgent.map(function(t) {
     var d = new Date(t.date); var today2 = new Date(); today2.setHours(0,0,0,0);
     var ov = d < today2;
     return '<div class="db-alert-item"><div class="db-alert-dot ' + (ov?'db-dot-red':'db-dot-orange') + '"></div>' +
       '<div><div class="db-alert-title">' + escHtml(t.title) + '</div>' +
-      '<div class="db-alert-sub">Teslim: <strong>' + formatDate(d) + '</strong>' + (ov?' — gecikmiş':'') + '</div></div></div>';
+      '<div class="db-alert-sub">Teslim: <strong>' + formatDate(d) + '</strong>' + (ov?' — gecikmis':'') + '</div></div></div>';
   }).join('');
 }
 
@@ -466,28 +895,11 @@ function addActivity(text, color) {
 function renderActivity() {
   var list = document.getElementById('activityList');
   if (!list) return;
-  if (activities.length === 0) { list.innerHTML = '<p class="db-empty-sm">Henüz aktivite yok.</p>'; return; }
+  if (activities.length === 0) { list.innerHTML = '<p class="db-empty-sm">Henuz aktivite yok.</p>'; return; }
   list.innerHTML = activities.slice(0,8).map(function(a) {
     return '<div class="db-activity-item"><div class="db-act-dot db-act-' + a.color + '"></div>' +
       '<div><div style="font-size:12.5px;color:var(--text-primary)">' + escHtml(a.text) + '</div>' +
       '<div class="db-act-time">' + timeAgo(a.time) + '</div></div></div>';
-  }).join('');
-}
-
-/* ── NOTIFICATIONS ────────────────────────────── */
-function updateNotifBadge() {
-  var today = new Date(); today.setHours(0,0,0,0);
-  var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
-  var urgent = tasks.filter(function(t){ return t.date && t.status !== 'done' && new Date(t.date) <= tomorrow; });
-  setText('notifBadge', urgent.length);
-  var dot = document.getElementById('notifDot');
-  if (dot) dot.style.display = urgent.length > 0 ? 'block' : 'none';
-  var notifList = document.getElementById('notifList');
-  if (!notifList) return;
-  if (urgent.length === 0) { notifList.innerHTML = '<p class="db-empty-sm">Henüz bildirim yok.</p>'; return; }
-  notifList.innerHTML = urgent.map(function(t) {
-    return '<div class="db-notif-item unread"><div class="db-notif-icon db-ni-orange"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>' +
-      '<div><div class="db-notif-title">' + escHtml(t.title) + '</div><div class="db-notif-time">Son gün: ' + formatDate(new Date(t.date)) + '</div></div></div>';
   }).join('');
 }
 
@@ -498,7 +910,7 @@ function updateAssigneeFilter() {
   var current = select.value;
   var names = [];
   tasks.forEach(function(t){ if (t.assignee && names.indexOf(t.assignee) === -1) names.push(t.assignee); });
-  select.innerHTML = '<option value="">Tüm Kişiler</option>' +
+  select.innerHTML = '<option value="">Tum Kisiler</option>' +
     names.map(function(n){ return '<option value="' + escHtml(n) + '"' + (n===current?' selected':'') + '>' + escHtml(n) + '</option>'; }).join('');
 }
 
@@ -518,10 +930,215 @@ function initFilters() {
   });
 }
 
+/* ── TEAM RENDER ──────────────────────────────── */
+function initInviteDrawer() {
+  var inviteBtn = document.getElementById('inviteBtn');
+  if (inviteBtn) inviteBtn.addEventListener('click', openInviteDrawer);
+  document.getElementById('inviteDrawerClose').addEventListener('click', closeInviteDrawer);
+  document.getElementById('inviteCancel').addEventListener('click', closeInviteDrawer);
+  document.getElementById('inviteSave').addEventListener('click', saveInvite);
+}
+function openInviteDrawer() {
+  document.getElementById('inviteName').value  = '';
+  document.getElementById('inviteEmail').value = '';
+  document.getElementById('inviteRole').value  = 'member';
+  document.getElementById('inviteDrawer').classList.add('open');
+  document.getElementById('dbOverlay').classList.add('open');
+  document.getElementById('inviteName').focus();
+}
+function closeInviteDrawer() {
+  document.getElementById('inviteDrawer').classList.remove('open');
+  document.getElementById('dbOverlay').classList.remove('open');
+}
+function saveInvite() {
+  var name   = document.getElementById('inviteName').value.trim();
+  var email  = document.getElementById('inviteEmail').value.trim();
+  var phone  = document.getElementById('invitePhone').value.trim();
+  var github = document.getElementById('inviteGithub').value.trim();
+  var role   = document.getElementById('inviteRole').value;
+  if (!name) { alert('Ad Soyad zorunludur.'); return; }
+  var member = { id: Date.now().toString(), name: name, email: email, phone: phone, github: github, role: role, joinedAt: new Date().toISOString() };
+  teamMembers.push(member);
+  localStorage.setItem('priorvia_team', JSON.stringify(teamMembers));
+  addActivity('"' + name + '" ekibe davet edildi', 'blue');
+  addNotif('"' + name + '" ekibe katildi', 'new');
+  renderTeam();
+  closeInviteDrawer();
+  showSaveBar('Davet gonderildi.');
+}
+
+function renderTeam() {
+  var list = document.getElementById('teamMemberList');
+  if (!list) return;
+  var pms = teamMembers.filter(function(m){ return m.role === 'pm'; }).length;
+  var members = teamMembers.filter(function(m){ return m.role === 'member'; }).length;
+  setText('teamTotalCount', teamMembers.length);
+  setText('teamPMCount', pms);
+  setText('teamMemberCount', members);
+
+  if (teamMembers.length === 0) {
+    list.innerHTML = '<p class="db-empty-sm" style="padding:24px 0">Henuz uye eklenmedi. "Uye Davet Et" butonunu kullanin.</p>';
+    return;
+  }
+  var roleLabel = { pm:'Proje Yoneticisi', member:'Ekip Uyesi', viewer:'Goruntüleyici' };
+  var roleCls   = { pm:'db-role-pm', member:'db-role-member', viewer:'db-role-viewer' };
+  var html = '<table class="db-team-table"><thead><tr><th>Uye</th><th>Rol</th><th>Gorev Sayisi</th><th>Katilim</th><th></th></tr></thead><tbody>';
+  teamMembers.forEach(function(m) {
+    var taskCount = tasks.filter(function(t){ return t.assignee && t.assignee.toLowerCase() === m.name.toLowerCase(); }).length;
+    var ini = m.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+    var joined = new Date(m.joinedAt).toLocaleDateString('tr-TR', {day:'numeric',month:'short',year:'numeric'});
+    html += '<tr><td><div class="db-member-cell"><div class="db-team-avatar">' + escHtml(ini) + '</div>' +
+      '<div><div class="db-member-name db-member-clickable" onclick="openMemberProfile(\'' + m.id + '\')" title="Profili Gor">' + escHtml(m.name) + '</div>' +
+      (m.email?'<div class="db-member-email">'+escHtml(m.email)+'</div>':'') + '</div></div></td>' +
+      '<td><span class="db-role-badge ' + (roleCls[m.role]||'db-role-member') + '">' + (roleLabel[m.role]||m.role) + '</span></td>' +
+      '<td>' + taskCount + ' gorev</td><td>' + joined + '</td>' +
+      '<td><button class="db-remove-btn" onclick="removeMember(\'' + m.id + '\')" title="Uyeyi Cikar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button></td></tr>';
+  });
+  html += '</tbody></table>';
+  list.innerHTML = html;
+}
+
+function removeMember(id) {
+  var m = teamMembers.find(function(x){ return x.id === id; });
+  if (!m) return;
+  if (!confirm('"' + m.name + '" ekipten cikarilacak. Emin misiniz?')) return;
+  teamMembers = teamMembers.filter(function(x){ return x.id !== id; });
+  localStorage.setItem('priorvia_team', JSON.stringify(teamMembers));
+  addActivity('"' + m.name + '" ekipten cikarildi', 'orange');
+  renderTeam();
+  showSaveBar('Uye cikarildi.');
+}
+
+/* ── PROFİL MODAL ─────────────────────────────── */
+function openMyProfile() {
+  var profile = getMyProfile();
+  var ini = profile.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  var myTasks    = tasks.filter(function(t){ return t.assignee && t.assignee.toLowerCase() === profile.name.toLowerCase(); });
+  var myDone     = myTasks.filter(function(t){ return t.status === 'done'; }).length;
+  var myProjects = projects.filter(function(p){ return p.members && p.members.length > 0; }).length;
+
+  setText('prfModalTitle', 'Profilim');
+  setText('prfViewAvatar', ini); setText('prfEditAvatar', ini);
+  setText('prfViewName', profile.name);
+  setText('prfViewRole', 'Proje Yoneticisi');
+  setText('prfViewEmail', profile.email || 'Belirtilmedi');
+  setText('prfViewPhone', profile.phone || 'Belirtilmedi');
+  setText('prfStatTasks', myTasks.length);
+  setText('prfStatDone', myDone);
+  setText('prfStatProjects', myProjects);
+
+  var ghEl = document.getElementById('prfViewGithub');
+  if (ghEl) { ghEl.textContent = profile.github || 'Belirtilmedi'; ghEl.href = profile.github || '#'; }
+
+  document.getElementById('prfViewMode').style.display = '';
+  document.getElementById('prfEditMode').style.display = 'none';
+  document.getElementById('prfEditBtn').style.display  = '';
+  document.getElementById('prfEditBtn').innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Duzenle';
+  document.getElementById('prfEditBtn').onclick = toggleProfileEdit;
+
+  document.getElementById('prfModal').classList.add('open');
+  document.getElementById('prfOverlay').classList.add('open');
+}
+
+function openMemberProfile(id) {
+  var m = teamMembers.find(function(x){ return x.id === id; });
+  if (!m) return;
+  var roleLabel = { pm:'Proje Yoneticisi', member:'Ekip Uyesi', viewer:'Goruntüleyici' };
+  var ini = m.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  var mTasks    = tasks.filter(function(t){ return t.assignee && t.assignee.toLowerCase() === m.name.toLowerCase(); });
+  var mDone     = mTasks.filter(function(t){ return t.status === 'done'; }).length;
+  var mProjects = projects.filter(function(p){ return p.members && p.members.indexOf(m.id) !== -1; }).length;
+
+  setText('prfModalTitle', m.name + ' — Profil');
+  setText('prfViewAvatar', ini);
+  setText('prfViewName', m.name);
+  setText('prfViewRole', roleLabel[m.role] || m.role);
+  setText('prfViewEmail', m.email || 'Belirtilmedi');
+  setText('prfViewPhone', m.phone || 'Belirtilmedi');
+  setText('prfStatTasks', mTasks.length);
+  setText('prfStatDone', mDone);
+  setText('prfStatProjects', mProjects);
+
+  var ghEl = document.getElementById('prfViewGithub');
+  if (ghEl) { ghEl.textContent = m.github || 'Belirtilmedi'; ghEl.href = m.github || '#'; }
+
+  document.getElementById('prfViewMode').style.display = '';
+  document.getElementById('prfEditMode').style.display = 'none';
+  document.getElementById('prfEditBtn').style.display  = 'none';
+
+  document.getElementById('prfModal').classList.add('open');
+  document.getElementById('prfOverlay').classList.add('open');
+}
+
+function toggleProfileEdit() {
+  var profile = getMyProfile();
+  var isEdit = document.getElementById('prfEditMode').style.display !== 'none';
+  if (!isEdit) {
+    document.getElementById('prfName').value   = profile.name   || '';
+    document.getElementById('prfEmail').value  = profile.email  || '';
+    document.getElementById('prfPhone').value  = profile.phone  || '';
+    document.getElementById('prfGithub').value = profile.github || '';
+    var ini = (profile.name||'').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+    setText('prfEditAvatar', ini);
+    document.getElementById('prfViewMode').style.display = 'none';
+    document.getElementById('prfEditMode').style.display = '';
+    document.getElementById('prfEditBtn').innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Kaydet';
+    document.getElementById('prfEditBtn').onclick = saveProfileFromModal;
+  }
+}
+
+function saveProfileFromModal() {
+  var name = document.getElementById('prfName').value.trim();
+  if (!name) { alert('Ad Soyad zorunludur.'); return; }
+  var data = { name: name, email: document.getElementById('prfEmail').value.trim(), phone: document.getElementById('prfPhone').value.trim(), github: document.getElementById('prfGithub').value.trim() };
+  saveMyProfile(data);
+  var ini = name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  setText('prfViewAvatar', ini); setText('prfViewName', name);
+  setText('prfViewEmail', data.email || 'Belirtilmedi'); setText('prfViewPhone', data.phone || 'Belirtilmedi');
+  var ghEl = document.getElementById('prfViewGithub');
+  if (ghEl) { ghEl.textContent = data.github || 'Belirtilmedi'; ghEl.href = data.github || '#'; }
+  document.getElementById('prfViewMode').style.display = '';
+  document.getElementById('prfEditMode').style.display = 'none';
+  document.getElementById('prfEditBtn').innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Duzenle';
+  document.getElementById('prfEditBtn').onclick = toggleProfileEdit;
+  showSaveBar('Profil guncellendi.');
+}
+
+function closeProfileModal() {
+  document.getElementById('prfModal').classList.remove('open');
+  document.getElementById('prfOverlay').classList.remove('open');
+}
+
+/* ── PROFİLİM VIEW ────────────────────────────── */
+function renderMyProfile() {
+  var profile = getMyProfile();
+  var ini = profile.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  setText('mprfAvatarDisp', ini || '?');
+  setText('mprfNameDisp', profile.name || '—');
+  setText('mprfListName', profile.name || '—');
+  setText('mprfListEmail', profile.email || '—');
+  setText('mprfListPhone', profile.phone || '—');
+  var ghEl = document.getElementById('mprfListGithub');
+  if (ghEl) { if (profile.github) { ghEl.textContent = profile.github; ghEl.href = profile.github; } else { ghEl.textContent = '—'; ghEl.href = '#'; } }
+  var f = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+  f('mprfName', profile.name); f('mprfEmail', profile.email); f('mprfPhone', profile.phone); f('mprfGithub', profile.github);
+}
+
+function saveMyProfileFromView() {
+  var nameEl = document.getElementById('mprfName');
+  if (!nameEl) return;
+  var name = nameEl.value.trim();
+  if (!name) { alert('Ad Soyad zorunludur.'); return; }
+  var data = { name: name, email: (document.getElementById('mprfEmail')||{}).value || '', phone: (document.getElementById('mprfPhone')||{}).value || '', github: (document.getElementById('mprfGithub')||{}).value || '' };
+  saveMyProfile(data);
+  renderMyProfile();
+  showSaveBar('Profil guncellendi.');
+}
+
 /* ── WELCOME ──────────────────────────────────── */
 function updateWelcome() {
   var h = new Date().getHours();
-  setText('welcomeMsg', (h<12?'Günaydın':h<18?'İyi günler':'İyi akşamlar') + ' 👋');
+  setText('welcomeMsg', (h<12?'Gunaydin':h<18?'Iyi gunler':'Iyi aksamlar') + ', ' + currentUser.split(' ')[0] + ' ?');
 }
 
 /* ── PERSIST ──────────────────────────────────── */
@@ -531,7 +1148,7 @@ function persist() { localStorage.setItem('priorvia_tasks', JSON.stringify(tasks
 var saveBarTimer = null;
 function showSaveBar(msg) {
   var bar = document.getElementById('saveBar');
-  document.getElementById('saveBarMsg').textContent = msg || 'Değişiklikler kaydedildi.';
+  document.getElementById('saveBarMsg').textContent = msg || 'Degisiklikler kaydedildi.';
   bar.classList.add('show');
   clearTimeout(saveBarTimer);
   saveBarTimer = setTimeout(function(){ bar.classList.remove('show'); }, 2600);
@@ -541,19 +1158,19 @@ function showSaveBar(msg) {
 function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
 function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function initials(name) { return String(name).split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2); }
-function colLabel(col) { return {todo:'Yapılacak',inprogress:'Devam Ediyor',done:'Tamamlandı'}[col]||col; }
+function colLabel(col) { return {todo:'Yapilacak',inprogress:'Devam Ediyor',done:'Tamamlandi'}[col]||col; }
 function formatDate(d) {
   var today = new Date(); today.setHours(0,0,0,0);
   var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
   var dd = new Date(d); dd.setHours(0,0,0,0);
-  if (dd.getTime()===today.getTime()) return 'Bugün';
-  if (dd.getTime()===tomorrow.getTime()) return 'Yarın';
+  if (dd.getTime()===today.getTime()) return 'Bugun';
+  if (dd.getTime()===tomorrow.getTime()) return 'Yarin';
   return dd.toLocaleDateString('tr-TR',{day:'numeric',month:'short'});
 }
 function timeAgo(ts) {
   var diff = Date.now()-ts;
-  if (diff<60000) return 'Az önce';
-  if (diff<3600000) return Math.floor(diff/60000)+' dk önce';
-  if (diff<86400000) return Math.floor(diff/3600000)+' saat önce';
-  return Math.floor(diff/86400000)+' gün önce';
+  if (diff<60000) return 'Az once';
+  if (diff<3600000) return Math.floor(diff/60000)+' dk once';
+  if (diff<86400000) return Math.floor(diff/3600000)+' saat once';
+  return Math.floor(diff/86400000)+' gun once';
 }

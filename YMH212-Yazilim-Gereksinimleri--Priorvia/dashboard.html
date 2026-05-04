@@ -26,54 +26,60 @@
 
     <nav class="db-nav">
       <span class="db-nav-label">GENEL</span>
-      <a href="dashboard.html" class="db-nav-item active">
+      <a href="#" class="db-nav-item active" data-view="dashboard">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         <span class="db-nav-text">Dashboard</span>
       </a>
-      <a href="#" class="db-nav-item">
+      <a href="#" class="db-nav-item" data-view="projects">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         <span class="db-nav-text">Projeler</span>
         <span class="db-nav-badge" id="projectCount">0</span>
       </a>
-      <a href="#" class="db-nav-item">
+      <a href="#" class="db-nav-item" data-view="mytasks">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         <span class="db-nav-text">Görevlerim</span>
         <span class="db-nav-badge" id="myTaskCount">0</span>
       </a>
 
       <span class="db-nav-label">YÖNETİM</span>
-      <a href="#" class="db-nav-item" id="navTeam">
+      <a href="#" class="db-nav-item" data-view="team">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="db-nav-text">Ekip &amp; Yetkiler</span>
       </a>
-      <a href="#" class="db-nav-item">
+      <a href="#" class="db-nav-item" data-view="notifications">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span class="db-nav-text">Bildirimler</span>
         <span class="db-nav-badge db-badge-red" id="notifBadge">0</span>
       </a>
-      <a href="#" class="db-nav-item">
+      <a href="#" class="db-nav-item" data-view="calendar">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span class="db-nav-text">Takvim</span>
       </a>
-      <a href="#" class="db-nav-item">
+      <a href="#" class="db-nav-item" data-view="archive">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
         <span class="db-nav-text">Arşiv</span>
       </a>
 
       <span class="db-nav-label">HESAP</span>
+      <!-- ★ YENİ: Profilim nav öğesi -->
+      <a href="#" class="db-nav-item" data-view="myprofile">
+        <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="db-nav-text">Profilim</span>
+      </a>
       <a href="#" class="db-nav-item">
         <svg width="18" height="18" class="db-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 1 1 4.93 19.07"/></svg>
         <span class="db-nav-text">Ayarlar</span>
       </a>
     </nav>
 
-    <div class="db-sidebar-user">
+    <!-- ★ GÜNCELLEME: Sidebar kullanıcı alanı → Profilim sayfasına yönlendirir -->
+    <div class="db-sidebar-user" id="sidebarUserBtn" onclick="showView('myprofile')" title="Profilimi Gör" style="cursor:pointer">
       <div class="db-user-avatar" id="sidebarAvatar">–</div>
       <div class="db-user-info">
         <div class="db-user-name" id="sidebarName">Kullanıcı</div>
         <div class="db-user-role" id="sidebarRole">Üye</div>
       </div>
-      <button class="db-logout-btn" title="Çıkış" onclick="window.location.href='homePage.html'">
+      <button class="db-logout-btn" title="Çıkış" onclick="event.stopPropagation();window.location.href='homePage.html'">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
     </div>
@@ -92,7 +98,6 @@
       </div>
 
       <div class="db-topbar-right">
-        <!-- Dark mode -->
         <button class="db-icon-btn" id="themeToggle" title="Tema Değiştir">
           <svg width="16" height="16" id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
@@ -107,10 +112,10 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span class="db-notif-dot" id="notifDot"></span>
           </button>
-          <div class="db-dropdown" id="notifDropdown">
-            <div class="db-dropdown-head">Bildirimler</div>
-            <div id="notifList"><p class="db-empty-sm">Henüz bildirim yok.</p></div>
-            <a href="#" class="db-dropdown-foot">Tümünü Gör</a>
+          <div class="db-dropdown db-notif-dropdown" id="notifDropdown">
+            <div class="db-dropdown-head">Bildirimler <span id="notifDropCount" class="db-dd-count">0</span></div>
+            <div id="notifList" class="db-notif-scroll"><p class="db-empty-sm">Henüz bildirim yok.</p></div>
+            <a href="#" class="db-dropdown-foot" onclick="showView('notifications');return false;">Tümünü Gör</a>
           </div>
         </div>
 
@@ -122,7 +127,8 @@
           </button>
           <div class="db-dropdown db-profile-drop" id="profileDropdown">
             <div class="db-dropdown-head">Hesabım</div>
-            <a href="#" class="db-drop-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profil</a>
+            <!-- ★ GÜNCELLEME: Profil linki → Profilim sayfasına yönlendirir -->
+            <a href="#" class="db-drop-item" onclick="closeAllDropdowns();showView('myprofile');return false;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profil</a>
             <a href="#" class="db-drop-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 1 1 4.93 19.07"/></svg>Ayarlar</a>
             <div class="db-drop-divider"></div>
             <a href="homePage.html" class="db-drop-item db-drop-danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Çıkış Yap</a>
@@ -216,7 +222,89 @@
       </div>
     </main>
 
-    <!-- ===== EKİP & YETKİLER VIEW ===== -->
+    <!-- ===== PROJELER VIEW ===== -->
+    <main class="db-page" id="viewProjects" style="display:none">
+      <div class="db-page-header">
+        <div>
+          <h1 class="db-page-title">Projeler</h1>
+          <p class="db-page-sub" id="projectsDoneCount">0 proje aktif</p>
+        </div>
+        <button class="btn-primary" id="newProjectBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Yeni Proje
+        </button>
+      </div>
+
+      <div class="db-projects-table-wrap">
+        <div class="db-proj-table-header">
+          <span>PROJE</span>
+          <span>ÜYELER</span>
+          <span>BÜTÇE</span>
+          <span>TAMAMLANMA</span>
+          <span></span>
+        </div>
+        <div id="projectsList"></div>
+      </div>
+    </main>
+
+    <!-- ===== GÖREVLERİM VIEW ===== -->
+    <main class="db-page" id="viewMyTasks" style="display:none">
+      <div class="db-page-header">
+        <div>
+          <h1 class="db-page-title">Görevlerim</h1>
+          <p class="db-page-sub">Size atanan görevler</p>
+        </div>
+        <button class="btn-primary" onclick="openDrawer('todo')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Yeni Görev
+        </button>
+      </div>
+      <div class="db-mytasks-list" id="myTasksList"></div>
+    </main>
+
+    <!-- ===== BİLDİRİMLER VIEW ===== -->
+    <main class="db-page" id="viewNotifications" style="display:none">
+      <div class="db-page-header">
+        <div>
+          <h1 class="db-page-title">Bildirimler</h1>
+          <p class="db-page-sub">Tüm sistem bildirimleri</p>
+        </div>
+        <button class="btn-ghost" onclick="clearNotifs()">Tümünü Temizle</button>
+      </div>
+      <div class="db-notif-full-list" id="notifFullList"></div>
+    </main>
+
+    <!-- ===== TAKVİM VIEW ===== -->
+    <main class="db-page" id="viewCalendar" style="display:none">
+      <div class="db-page-header">
+        <div>
+          <h1 class="db-page-title">Takvim</h1>
+          <p class="db-page-sub" id="calendarMonthLabel"></p>
+        </div>
+        <div class="db-cal-controls">
+          <select class="db-select db-cal-select" id="calMonthSelect"></select>
+          <select class="db-select db-cal-select" id="calYearSelect"></select>
+          <div class="db-cal-nav">
+            <button class="db-cal-nav-btn" id="calPrev" title="Önceki Ay">&#8249;</button>
+            <button class="db-cal-nav-btn" id="calNext" title="Sonraki Ay">&#8250;</button>
+          </div>
+        </div>
+      </div>
+      <div class="db-calendar" id="calendarGrid"></div>
+    </main>
+
+    <!-- ===== ARŞİV VIEW ===== -->
+    <main class="db-page" id="viewArchive" style="display:none">
+      <div class="db-page-header">
+        <div>
+          <h1 class="db-page-title">Arşiv</h1>
+          <p class="db-page-sub">PM onaylı tamamlanan görevler</p>
+        </div>
+      </div>
+      <div class="db-archive-list" id="archiveList"></div>
+    </main>
+
+    <!-- ===== EKİP VIEW ===== -->
     <main class="db-page" id="viewTeam" style="display:none">
       <div class="db-page-header">
         <div>
@@ -229,7 +317,6 @@
         </button>
       </div>
 
-      <!-- Rol Özeti -->
       <div class="db-stats" style="grid-template-columns:repeat(3,1fr)">
         <div class="db-stat-card">
           <div class="db-stat-icon si-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
@@ -253,10 +340,108 @@
               Üye Listesi
             </h2>
           </div>
-          <div id="teamMemberList">
-            <p class="db-empty-sm" style="padding:24px 0">Henüz üye eklenmedi. "Üye Davet Et" butonunu kullanın.</p>
+          <div id="teamMemberList"><p class="db-empty-sm" style="padding:24px 0">Henüz üye eklenmedi.</p></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ★ YENİ: PROFİLİM VIEW -->
+    <main class="db-page" id="viewMyprofile" style="display:none">
+      <div class="db-page-header">
+        <div>
+          <h1 class="db-page-title">Profilim</h1>
+          <p class="db-page-sub">Kişisel bilgilerinizi görüntüleyin ve düzenleyin</p>
+        </div>
+      </div>
+
+      <div class="mprf-layout">
+
+        <!-- Sol: Bilgi Listesi -->
+        <div class="mprf-info-panel">
+          <div class="mprf-avatar-wrap">
+            <div class="mprf-avatar" id="mprfAvatarDisp">–</div>
+            <div>
+              <div class="mprf-fullname" id="mprfNameDisp">—</div>
+              <span class="mprf-badge">Proje Yöneticisi</span>
+            </div>
+          </div>
+
+          <ul class="mprf-list">
+            <li class="mprf-list-item">
+              <span class="mprf-list-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </span>
+              <div>
+                <div class="mprf-list-label">Ad Soyad</div>
+                <div class="mprf-list-val" id="mprfListName">—</div>
+              </div>
+            </li>
+            <li class="mprf-list-item">
+              <span class="mprf-list-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              </span>
+              <div>
+                <div class="mprf-list-label">E-posta</div>
+                <div class="mprf-list-val" id="mprfListEmail">—</div>
+              </div>
+            </li>
+            <li class="mprf-list-item">
+              <span class="mprf-list-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16h.27Z"/></svg>
+              </span>
+              <div>
+                <div class="mprf-list-label">Telefon</div>
+                <div class="mprf-list-val" id="mprfListPhone">—</div>
+              </div>
+            </li>
+            <li class="mprf-list-item">
+              <span class="mprf-list-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+              </span>
+              <div>
+                <div class="mprf-list-label">GitHub</div>
+                <a class="mprf-list-val mprf-list-link" id="mprfListGithub" href="#" target="_blank" rel="noopener">—</a>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Sağ: Düzenleme Formu -->
+        <div class="mprf-form-panel">
+          <div class="mprf-form-head">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Bilgileri Düzenle
+          </div>
+          <div class="mprf-form-body">
+            <div class="db-fg">
+              <label class="mprf-label">Ad Soyad <span style="color:#e53e3e">*</span></label>
+              <input type="text" id="mprfName" class="db-input" placeholder="Ad Soyad" />
+            </div>
+            <div class="db-fg">
+              <label class="mprf-label">E-posta</label>
+              <input type="email" id="mprfEmail" class="db-input" placeholder="ornek@email.com" />
+            </div>
+            <div class="db-fg">
+              <label class="mprf-label">Telefon</label>
+              <input type="tel" id="mprfPhone" class="db-input" placeholder="+90 555 000 00 00" />
+            </div>
+            <div class="db-fg">
+              <label class="mprf-label">GitHub Linki</label>
+              <input type="url" id="mprfGithub" class="db-input" placeholder="https://github.com/kullaniciadi" />
+            </div>
+          </div>
+          <div class="mprf-form-foot">
+            <button class="btn-ghost" onclick="renderMyProfile()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.93"/></svg>
+              Sıfırla
+            </button>
+            <button class="btn-primary" onclick="saveMyProfileFromView()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              Kaydet
+            </button>
           </div>
         </div>
+
       </div>
     </main>
 
@@ -275,6 +460,10 @@
         <label>Görev Başlığı <span style="color:#e53e3e">*</span></label>
         <input type="text" id="fTitle" class="db-input" placeholder="Görev başlığını girin..." />
         <span class="db-ferr" id="fTitleErr">Bu alan zorunludur.</span>
+      </div>
+      <div class="db-fg">
+        <label>Proje</label>
+        <select id="fProject" class="db-input"><option value="">— Proje Seçin —</option></select>
       </div>
       <div class="db-fg">
         <label>Açıklama</label>
@@ -323,7 +512,14 @@
       <div class="db-fg">
         <label>E-posta</label>
         <input type="email" id="inviteEmail" class="db-input" placeholder="ornek@email.com" />
-        <span style="font-size:11.5px;color:var(--text-muted);margin-top:3px">Kayıtlıysa "Projeye Katıl", değilse "Kayıt Ol" bağlantısı gönderilir.</span>
+      </div>
+      <div class="db-fg">
+        <label>Telefon</label>
+        <input type="tel" id="invitePhone" class="db-input" placeholder="+90 555 000 00 00" />
+      </div>
+      <div class="db-fg">
+        <label>GitHub Linki</label>
+        <input type="url" id="inviteGithub" class="db-input" placeholder="https://github.com/kullaniciadi" />
       </div>
       <div class="db-fg">
         <label>Rol</label>
@@ -337,6 +533,127 @@
     <div class="db-drawer-ft">
       <button class="btn-ghost" id="inviteCancel">İptal</button>
       <button class="btn-primary" id="inviteSave">Davet Gönder</button>
+    </div>
+  </div>
+
+  <!-- ===== YENİ PROJE DRAWER ===== -->
+  <div class="db-drawer" id="projectDrawer" style="width:420px">
+    <div class="db-drawer-hd">
+      <h3 id="projectDrawerTitle">Yeni Proje</h3>
+      <button id="projectDrawerClose"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="db-drawer-body">
+      <input type="hidden" id="editProjectId" />
+      <div class="db-fg">
+        <label>Proje Adı <span style="color:#e53e3e">*</span></label>
+        <input type="text" id="pName" class="db-input" placeholder="Proje adı..." />
+      </div>
+      <div class="db-fg">
+        <label>Açıklama</label>
+        <textarea id="pDesc" class="db-input" style="min-height:60px;resize:vertical" placeholder="Proje açıklaması..."></textarea>
+      </div>
+      <div class="db-form-row">
+        <div class="db-fg">
+          <label>Bütçe ($)</label>
+          <input type="number" id="pBudget" class="db-input" placeholder="0" min="0" />
+        </div>
+        <div class="db-fg">
+          <label>Bitiş Tarihi</label>
+          <input type="date" id="pDeadline" class="db-input" />
+        </div>
+      </div>
+      <div class="db-fg">
+        <label>Renk / İkon</label>
+        <select id="pColor" class="db-input">
+          <option value="blue">🔵 Mavi</option>
+          <option value="green">🟢 Yeşil</option>
+          <option value="orange">🟠 Turuncu</option>
+          <option value="purple">🟣 Mor</option>
+          <option value="red">🔴 Kırmızı</option>
+        </select>
+      </div>
+      <div class="db-fg">
+        <label>Üyeler <span style="font-size:11px;color:var(--text-muted)">(virgülle ayırın veya listeden seçin)</span></label>
+        <div id="memberCheckList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+      </div>
+    </div>
+    <div class="db-drawer-ft">
+      <button class="btn-ghost" id="projectDrawerCancel">İptal</button>
+      <button class="btn-primary" id="projectDrawerSave">Kaydet</button>
+    </div>
+  </div>
+
+  <!-- ===== PROFİL MODAL ===== -->
+  <div class="prf-overlay" id="prfOverlay" onclick="closeProfileModal()"></div>
+  <div class="prf-modal" id="prfModal">
+    <div class="prf-modal-hd">
+      <h3 id="prfModalTitle">Profil</h3>
+      <button class="prf-close-btn" onclick="closeProfileModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="prf-modal-body">
+      <!-- Görüntüleme modu -->
+      <div id="prfViewMode">
+        <div class="prf-avatar-row">
+          <div class="prf-big-avatar" id="prfViewAvatar">AV</div>
+          <div>
+            <div class="prf-view-name" id="prfViewName">—</div>
+            <div class="prf-view-role" id="prfViewRole">—</div>
+          </div>
+        </div>
+        <div class="prf-info-grid">
+          <div class="prf-info-item" id="prfViewEmailWrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span id="prfViewEmail">—</span>
+          </div>
+          <div class="prf-info-item" id="prfViewPhoneWrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16h.27Z"/></svg>
+            <span id="prfViewPhone">—</span>
+          </div>
+          <div class="prf-info-item" id="prfViewGithubWrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            <a id="prfViewGithub" href="#" target="_blank" rel="noopener">—</a>
+          </div>
+        </div>
+        <div class="prf-view-stats">
+          <div class="prf-stat"><span id="prfStatTasks">0</span><small>Görev</small></div>
+          <div class="prf-stat"><span id="prfStatDone">0</span><small>Tamamlandı</small></div>
+          <div class="prf-stat"><span id="prfStatProjects">0</span><small>Proje</small></div>
+        </div>
+      </div>
+      <!-- Düzenleme modu (sadece kendi profili) -->
+      <div id="prfEditMode" style="display:none">
+        <div class="prf-avatar-row">
+          <div class="prf-big-avatar" id="prfEditAvatar">AV</div>
+          <div>
+            <div style="font-size:13px;color:var(--text-muted)">Profil bilgilerini düzenle</div>
+          </div>
+        </div>
+        <div class="db-fg">
+          <label>Ad Soyad <span style="color:#e53e3e">*</span></label>
+          <input type="text" id="prfName" class="db-input" placeholder="Ad Soyad" />
+        </div>
+        <div class="db-fg">
+          <label>E-posta</label>
+          <input type="email" id="prfEmail" class="db-input" placeholder="ornek@email.com" />
+        </div>
+        <div class="db-fg">
+          <label>Telefon</label>
+          <input type="tel" id="prfPhone" class="db-input" placeholder="+90 555 000 00 00" />
+        </div>
+        <div class="db-fg">
+          <label>GitHub Linki</label>
+          <input type="url" id="prfGithub" class="db-input" placeholder="https://github.com/kullaniciadi" />
+        </div>
+      </div>
+    </div>
+    <div class="prf-modal-ft" id="prfModalFt">
+      <button class="btn-ghost" onclick="closeProfileModal()">Kapat</button>
+      <button class="btn-primary" id="prfEditBtn" onclick="toggleProfileEdit()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Düzenle
+      </button>
     </div>
   </div>
 
