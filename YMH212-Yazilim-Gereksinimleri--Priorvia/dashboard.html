@@ -135,16 +135,21 @@
     </header>
 
     <!-- ===== DASHBOARD VIEW ===== -->
-    <main class="db-page" id="viewDashboard">
+   <main class="db-page" id="viewDashboard">
       <div class="db-page-header">
         <div>
           <h1 class="db-page-title">Dashboard</h1>
           <p class="db-page-sub" id="welcomeMsg">Hoş geldin 👋</p>
         </div>
-        <button class="btn-primary" id="newTaskBtn">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Yeni Görev
-        </button>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <select class="db-select db-proj-filter-sel" id="dashProjectFilter" style="min-width:180px;padding:9px 12px;font-size:13px">
+            <option value="">🗂 Tüm Projeler</option>
+          </select>
+          <button class="btn-primary" id="newTaskBtn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Yeni Görev
+          </button>
+        </div>
       </div>
 
       <div class="db-stats">
@@ -206,15 +211,41 @@
           </div>
         </section>
 
-        <aside class="db-right">
+       <aside class="db-right">
+
+          <!-- Uyarılar -->
           <div class="db-panel-card">
-            <div class="db-panel-head"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Uyarılar</div>
+            <div class="db-panel-head">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Uyarılar
+            </div>
             <div id="alertList"><p class="db-empty-sm">Yaklaşan teslim tarihi yok.</p></div>
           </div>
+
+          <!-- Burndown Chart -->
           <div class="db-panel-card">
-            <div class="db-panel-head"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Aktivite Kaydı</div>
-            <div id="activityList"><p class="db-empty-sm">Henüz aktivite yok.</p></div>
+            <div class="db-panel-head">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+              Proje İlerlemesi
+              <span id="chartProjLabel" style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:400"></span>
+            </div>
+            <div style="position:relative;height:140px;margin-top:10px">
+              <canvas id="burndownChart"></canvas>
+            </div>
           </div>
+
+          <!-- Donut Chart -->
+          <div class="db-panel-card">
+            <div class="db-panel-head">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Durum Dağılımı
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:12px">
+              <canvas id="donutChart" width="140" height="140"></canvas>
+              <div id="donutLegend" style="width:100%"></div>
+            </div>
+          </div>
+
         </aside>
       </div>
     </main>
@@ -926,7 +957,10 @@
       </div>
       <div class="db-fg">
         <label>Atanan Kişi</label>
-        <input type="text" id="fAssignee" class="db-input" placeholder="Ad Soyad" />
+        <select id="fAssignee" class="db-input">
+          <option value="">— Kişi Seçin —</option>
+        </select>
+    
       </div>
       <div class="db-fg">
         <label>Durum</label>
@@ -1090,6 +1124,55 @@
   <div class="db-save-bar" id="saveBar">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
     <span id="saveBarMsg">Değişiklikler kaydedildi.</span>
+  </div>
+
+  <!-- ===== REVIEW MODAL ===== -->
+  <div class="prf-overlay" id="reviewOverlay" onclick="closeReviewModal()"></div>
+  <div class="prf-modal" id="reviewModal" style="max-width:520px">
+    <div class="prf-modal-hd">
+      <h3>Görev Detayı & Review</h3>
+      <button class="prf-close-btn" onclick="closeReviewModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="prf-modal-body" style="gap:14px">
+      <div class="rv-header">
+        <span class="priority-tag" id="rvPriority">ORTA</span>
+        <span class="db-mt-status" id="rvStatus">Tamamlandı</span>
+      </div>
+      <div class="rv-title" id="rvTitle">—</div>
+      <div class="rv-desc" id="rvDesc" style="display:none"></div>
+      <div class="rv-meta-grid">
+        <div class="rv-meta-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="rvAssignee">—</span>
+        </div>
+        <div class="rv-meta-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span id="rvDate">—</span>
+        </div>
+        <div class="rv-meta-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="rvProject">—</span>
+        </div>
+        <div class="rv-meta-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span id="rvProgress">—</span>
+        </div>
+      </div>
+      <div class="rv-divider"></div>
+      <div class="rv-action-row">
+        <button class="btn-ghost" onclick="closeReviewModal()">Kapat</button>
+        <button class="btn-primary" id="rvEditBtn" onclick="closeReviewModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Düzenle
+        </button>
+        <button class="btn-primary" id="rvArchiveBtn" style="background:var(--green-600)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+          Arşivle (PM)
+        </button>
+      </div>
+    </div>
   </div>
 
   <script src="dashboard.js"></script>

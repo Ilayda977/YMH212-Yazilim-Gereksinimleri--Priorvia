@@ -10,6 +10,59 @@
    ================================================ */
 
 /* ── BACKEND KONTROL ──────────────────────────── */
+/* ── HYBRID API KATMANI ───────────────────────────────────────────────────
+   Backend varsa fetch() kullanır, yoksa localStorage fallback'e geçer.
+   API_BASE = backend URL. Değiştirmen gerekmez.
+   ─────────────────────────────────────────────────────────────────────── */
+var API_BASE = 'http://localhost:3000';
+var _backendAvailable = null; // null=bilinmiyor, true/false=test edildi
+
+function checkBackend() {
+  if (_backendAvailable !== null) return Promise.resolve(_backendAvailable);
+  return fetch(API_BASE + '/health', { method: 'GET', signal: AbortSignal.timeout(1500) })
+    .then(function() { _backendAvailable = true;  return true;  })
+    .catch(function() { _backendAvailable = false; return false; });
+}
+
+/* Genel API helper — token'ı otomatik ekler */
+function apiRequest(method, path, body) {
+  var opts = {
+    method: method,
+    headers: { 'Content-Type': 'application/json' }
+  };
+  var tok = localStorage.getItem('token');
+  if (tok) opts.headers['Authorization'] = 'Bearer ' + tok;
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(API_BASE + path, opts).then(function(r) {
+    if (!r.ok) throw new Error('API ' + r.status);
+    return r.json();
+  });
+}
+
+/* Proje üyelerini getir — hybrid */
+function fetchProjectMembers(projectId) {
+  return checkBackend().then(function(ok) {
+    if (ok && projectId) {
+      return apiRequest('GET', '/projects/' + projectId + '/members')
+        .then(function(data) { return data.members || data; })
+        .catch(function() { return teamMembers; }); // hata → localStorage
+    }
+    /* Backend yok veya proje seçilmedi → localStorage'dan ekip */
+    return Promise.resolve(teamMembers);
+  });
+}
+
+/* Tüm ekip üyelerini getir — hybrid */
+function fetchTeamMembers() {
+  return checkBackend().then(function(ok) {
+    if (ok) {
+      return apiRequest('GET', '/team/members')
+        .then(function(data) { return data.members || data; })
+        .catch(function() { return teamMembers; });
+    }
+    return Promise.resolve(teamMembers);
+  });
+}
 var token = localStorage.getItem('token');
 if (!token) {
   window.location.href = 'homePage.html';
@@ -189,6 +242,7 @@ function showView(view) {
 
   if (view === 'projects')      renderProjects();
   if (view === 'mytasks')       renderMyTasks();
+  if (view === 'dashboard')     { renderDashChart(); populateDashProjectFilter(); }
   if (view === 'team')          renderTeam();
   if (view === 'notifications') renderNotificationsFull();
   if (view === 'calendar')      renderCalendar();
@@ -245,6 +299,10 @@ function initDrawer() {
     var pg = document.getElementById('progressGroup');
     if (pg) pg.style.display = e.target.value === 'inprogress' ? 'flex' : 'none';
   });
+  document.getElementById('fProject').addEventListener('change', function() {
+    var currentAssignee = document.getElementById('fAssignee').value;
+    populateAssigneeSelect(currentAssignee, this.value);
+  });
   document.getElementById('fProgress').addEventListener('input', function(e) {
     document.getElementById('progressVal').textContent = e.target.value;
   });
@@ -267,6 +325,43 @@ function populateProjectDropdown(selectedId) {
     sel.appendChild(opt);
   });
 }
+function populateAssigneeSelect(selectedValue, projectId) {
+  var sel = document.getElementById('fAssignee');
+  if (!sel || sel.tagName !== 'SELECT') return; /* HTML henüz güncellenmemişse çık */
+
+  sel.innerHTML = '<option value="">— Kişi Seçin —</option>';
+  sel.disabled = true;
+
+  fetchProjectMembers(projectId).then(function(members) {
+    sel.innerHTML = '<option value="">— Kişi Seçin —</option>';
+
+    /* Ekipte kimse yoksa elle giriş seçeneği sun */
+    if (!members || members.length === 0) {
+      var opt = document.createElement('option');
+      opt.value = selectedValue;
+      opt.textContent = selectedValue || 'Ekip üyesi yok';
+      if (selectedValue) { opt.selected = true; sel.appendChild(opt); }
+      sel.disabled = false;
+      return;
+    }
+
+    members.forEach(function(m) {
+      var name = m.name || m.email || m;
+      var val  = name;
+      var opt  = document.createElement('option');
+      opt.value = val;
+
+      /* Avatar baş harflerini label'a ekle */
+      var ini = name.split(' ').map(function(w){ return w[0] || ''; }).join('').toUpperCase().slice(0, 2);
+      opt.textContent = ini + '  ' + name;
+
+      if (val === selectedValue || name === selectedValue) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    sel.disabled = false;
+  });
+}
 
 function openDrawer(defaultStatus) {
   defaultStatus = defaultStatus || 'todo';
@@ -277,7 +372,6 @@ function openDrawer(defaultStatus) {
   document.getElementById('fDesc').value     = '';
   document.getElementById('fPriority').value = 'med';
   document.getElementById('fDate').value     = '';
-  document.getElementById('fAssignee').value = '';
   document.getElementById('fStatus').value   = defaultStatus;
   document.getElementById('fProgress').value = 0;
   document.getElementById('progressVal').textContent = '0';
@@ -285,6 +379,11 @@ function openDrawer(defaultStatus) {
   document.getElementById('fTitle').classList.remove('err');
   document.getElementById('fTitleErr').classList.remove('show');
   populateProjectDropdown('');
+
+  /* Assignee select'i doldur */
+  var projId = document.getElementById('fProject').value || '';
+  populateAssigneeSelect('', projId);
+
   document.getElementById('taskDrawer').classList.add('open');
   document.getElementById('dbOverlay').classList.add('open');
   document.getElementById('fTitle').focus();
@@ -300,12 +399,15 @@ function openEditDrawer(id) {
   document.getElementById('fDesc').value     = task.desc || '';
   document.getElementById('fPriority').value = task.priority;
   document.getElementById('fDate').value     = task.date || '';
-  document.getElementById('fAssignee').value = task.assignee || '';
   document.getElementById('fStatus').value   = task.status;
   document.getElementById('fProgress').value = task.progress || 0;
   document.getElementById('progressVal').textContent = task.progress || 0;
   document.getElementById('progressGroup').style.display = task.status === 'inprogress' ? 'flex' : 'none';
   populateProjectDropdown(task.projectId || '');
+
+  /* Assignee select'i doldur — mevcut değeri seç */
+  populateAssigneeSelect(task.assignee || '', task.projectId || '');
+
   document.getElementById('taskDrawer').classList.add('open');
   document.getElementById('dbOverlay').classList.add('open');
   document.getElementById('fTitle').focus();
@@ -1699,4 +1801,374 @@ function shareViaEmail() {
   var subject = profile.name + " sizi Priorvia\u2019ya davet etti";
   var body = 'Merhaba,%0A%0A' + profile.name + ' sizi Priorvia proje yönetim ekibine davet etti.%0A%0ADavet linkiniz: ' + link + '%0A%0APriorvia ile görevlerinizi kolayca yönetin.';
   window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + body;
+}
+
+/* ================================================
+   ADIM 2 — Dashboard Proje Filtresi + Review + Chart
+   ================================================ */
+
+/* ── Proje Filtresi ─────────────────────────────── */
+var dashSelectedProject = ''; /* '' = tüm projeler */
+
+function initDashProjectFilter() {
+  var sel = document.getElementById('dashProjectFilter');
+  if (!sel) return;
+  sel.addEventListener('change', function() {
+    dashSelectedProject = this.value;
+    render();
+    renderDashChart();
+  });
+}
+
+function populateDashProjectFilter() {
+  var sel = document.getElementById('dashProjectFilter');
+  if (!sel) return;
+  var current = sel.value;
+  sel.innerHTML = '<option value="">🗂 Tüm Projeler</option>';
+  projects.forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.id === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (!sel.value) dashSelectedProject = '';
+}
+
+/* ── Render'ı proje filtresine göre güncelle ──────
+   Mevcut render() fonksiyonu task'ları filtreler,
+   biz sadece projectId filtresini ekleyeceğiz.
+   Bunun için mevcut render()'ı wrap'liyoruz.        */
+var _origRender = render;
+render = function() {
+  _origRender();
+  applyProjectFilter();
+  populateDashProjectFilter();
+  updateDashStats();
+};
+
+function applyProjectFilter() {
+  if (!dashSelectedProject) return; /* tüm projeler — dokunma */
+  document.querySelectorAll('.db-task-card').forEach(function(card) {
+    var id   = card.dataset.id;
+    var task = tasks.find(function(t){ return t.id === id; });
+    if (!task) return;
+    var match = task.projectId === dashSelectedProject;
+    card.style.display = match ? '' : 'none';
+  });
+  /* Boş kolon mesajlarını güncelle */
+  ['todo','inprogress','done'].forEach(function(col) {
+    var list    = document.getElementById('list-' + col);
+    var empty   = document.getElementById('empty-' + col);
+    var count   = document.getElementById('cnt-' + col);
+    if (!list || !empty) return;
+    var visible = list.querySelectorAll('.db-task-card:not([style*="display: none"])').length;
+    empty.style.display = visible === 0 ? 'block' : 'none';
+    if (count) count.textContent = visible;
+  });
+}
+
+function updateDashStats() {
+  var filtered = dashSelectedProject
+    ? tasks.filter(function(t){ return t.projectId === dashSelectedProject; })
+    : tasks;
+  var total  = filtered.length;
+  var inprog = filtered.filter(function(t){ return t.status === 'inprogress'; }).length;
+  var done   = filtered.filter(function(t){ return t.status === 'done'; }).length;
+  var rate   = total > 0 ? Math.round((done / total) * 100) : 0;
+  setText('statTotal',      total);
+  setText('statInProgress', inprog);
+  setText('statDone',       done);
+  setText('statRate',       '%' + rate);
+  var bar = document.getElementById('miniProgressFill');
+  if (bar) bar.style.width = rate + '%';
+  /* Proje label */
+  var proj = projects.find(function(p){ return p.id === dashSelectedProject; });
+  setText('chartProjLabel', proj ? proj.name : 'Tüm Projeler');
+}
+
+/* ── REVIEW MODAL ───────────────────────────────── */
+function openReviewModal(taskId) {
+  var task = tasks.find(function(t){ return t.id === taskId; });
+  if (!task) return;
+
+  var pLabel    = { high:'YÜKSEK', med:'ORTA', low:'DÜŞÜK' }[task.priority] || 'ORTA';
+  var statusMap = {
+    todo:'Yapılacak', inprogress:'Devam Ediyor',
+    done:'Tamamlandı', pending_approval:'PM Onayı Bekliyor'
+  };
+  var statusCls = {
+    todo:'db-mt-todo', inprogress:'db-mt-prog',
+    done:'db-mt-done', pending_approval:'db-mt-pending'
+  };
+  var proj = projects.find(function(p){ return p.id === task.projectId; });
+
+  /* Priority tag */
+  var prEl = document.getElementById('rvPriority');
+  if (prEl) {
+    prEl.textContent = pLabel;
+    prEl.className   = 'priority-tag ' + task.priority;
+  }
+
+  /* Status badge */
+  var stEl = document.getElementById('rvStatus');
+  if (stEl) {
+    stEl.textContent = statusMap[task.status] || task.status;
+    stEl.className   = 'db-mt-status ' + (statusCls[task.status] || 'db-mt-done');
+  }
+
+  setText('rvTitle',    task.title);
+  setText('rvAssignee', task.assignee || 'Atanmadı');
+  setText('rvDate',     task.date ? formatDate(new Date(task.date)) : 'Tarih yok');
+  setText('rvProject',  proj ? proj.name : 'Proje yok');
+  setText('rvProgress', task.progress > 0 ? '%' + task.progress + ' tamamlandı' : 'İlerleme girilmedi');
+
+  var descEl = document.getElementById('rvDesc');
+  if (descEl) {
+    if (task.desc) {
+      descEl.textContent = task.desc;
+      descEl.style.display = '';
+    } else {
+      descEl.style.display = 'none';
+    }
+  }
+
+  /* Butonlara task id bağla */
+  var editBtn = document.getElementById('rvEditBtn');
+  if (editBtn) editBtn.onclick = function() { closeReviewModal(); openEditDrawer(task.id); };
+
+  var archBtn = document.getElementById('rvArchiveBtn');
+  if (archBtn) {
+    archBtn.style.display = task.status === 'done' ? '' : 'none';
+    archBtn.onclick = function() { closeReviewModal(); archiveTask(task.id); };
+  }
+
+  document.getElementById('reviewModal').classList.add('open');
+  document.getElementById('reviewOverlay').classList.add('open');
+}
+
+function closeReviewModal() {
+  document.getElementById('reviewModal').classList.remove('open');
+  document.getElementById('reviewOverlay').classList.remove('open');
+}
+
+/* ── CHART.JS — Burndown + Donut ────────────────── */
+var _burndownChart = null;
+var _donutChart    = null;
+
+function loadChartJS(cb) {
+  if (window.Chart) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+  s.onload = cb;
+  document.head.appendChild(s);
+}
+
+function renderDashChart() {
+  loadChartJS(function() {
+    renderBurndownChart();
+    renderDonutChart();
+  });
+}
+
+function getChartColors() {
+  var dark = document.body.classList.contains('dark-mode');
+  return {
+    gridColor:  dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+    textColor:  dark ? '#8ab89a' : '#6B8F7B',
+    lineColor:  dark ? '#4ade80' : '#40916C',
+    areaColor:  dark ? 'rgba(74,222,128,0.12)' : 'rgba(64,145,108,0.10)',
+    todoColor:  dark ? '#4b5563' : '#94a3b8',
+    progColor:  dark ? '#f59e0b' : '#f59e0b',
+    doneColor:  dark ? '#4ade80' : '#22c55e'
+  };
+}
+
+function renderBurndownChart() {
+  var canvas = document.getElementById('burndownChart');
+  if (!canvas) return;
+
+  var filtered = dashSelectedProject
+    ? tasks.filter(function(t){ return t.projectId === dashSelectedProject; })
+    : tasks;
+
+  /* Son 7 günün tamamlanma verisini hesapla */
+  var labels = [];
+  var dataPoints = [];
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date();
+    d.setDate(d.getDate() - i);
+    d.setHours(23, 59, 59, 0);
+    var dayLabel = d.toLocaleDateString('tr-TR', { day:'numeric', month:'short' });
+    labels.push(dayLabel);
+
+    /* O güne kadar tamamlanan görev sayısı */
+    var doneCount = filtered.filter(function(t) {
+      if (t.status !== 'done') return false;
+      /* createdAt'i kaba tamamlanma tarihi olarak kullan */
+      var taskDate = new Date(t.updatedAt || t.createdAt || Date.now());
+      return taskDate <= d;
+    }).length;
+    var total = filtered.length || 1;
+    dataPoints.push(Math.round((doneCount / total) * 100));
+  }
+
+  var c = getChartColors();
+  var ctx = canvas.getContext('2d');
+
+  if (_burndownChart) { _burndownChart.destroy(); _burndownChart = null; }
+
+  _burndownChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Tamamlanma %',
+        data: dataPoints,
+        borderColor: c.lineColor,
+        backgroundColor: c.areaColor,
+        borderWidth: 2,
+        pointBackgroundColor: c.lineColor,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: true,
+        tension: 0.35
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return ' %' + ctx.parsed.y + ' tamamlandı'; }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: c.gridColor },
+          ticks: { color: c.textColor, font: { size: 11 } }
+        },
+        y: {
+          min: 0, max: 100,
+          grid: { color: c.gridColor },
+          ticks: {
+            color: c.textColor, font: { size: 11 },
+            callback: function(v) { return '%' + v; }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderDonutChart() {
+  var canvas = document.getElementById('donutChart');
+  if (!canvas) return;
+
+  var filtered = dashSelectedProject
+    ? tasks.filter(function(t){ return t.projectId === dashSelectedProject; })
+    : tasks;
+
+  var todo   = filtered.filter(function(t){ return t.status === 'todo'; }).length;
+  var inprog = filtered.filter(function(t){ return t.status === 'inprogress'; }).length;
+  var done   = filtered.filter(function(t){ return t.status === 'done'; }).length;
+
+  var c = getChartColors();
+  var ctx = canvas.getContext('2d');
+
+  if (_donutChart) { _donutChart.destroy(); _donutChart = null; }
+
+  var total = todo + inprog + done;
+  if (total === 0) {
+    /* Boş state */
+    var legend = document.getElementById('donutLegend');
+    if (legend) legend.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Henüz görev yok.</span>';
+    return;
+  }
+
+  _donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Yapılacak', 'Devam Ediyor', 'Tamamlandı'],
+      datasets: [{
+        data: [todo, inprog, done],
+        backgroundColor: [c.todoColor, c.progColor, c.doneColor],
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: false,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              var pct = Math.round((ctx.parsed / total) * 100);
+              return ' ' + ctx.label + ': ' + ctx.parsed + ' (%' + pct + ')';
+            }
+          }
+        }
+      }
+    }
+  });
+
+  /* Legend */
+  var legend = document.getElementById('donutLegend');
+  if (legend) {
+    var items = [
+      { label:'Yapılacak',    count:todo,   color:c.todoColor },
+      { label:'Devam Ediyor', count:inprog, color:c.progColor },
+      { label:'Tamamlandı',   count:done,   color:c.doneColor }
+    ];
+    legend.innerHTML = items.map(function(item) {
+      return '<div class="db-donut-item">' +
+        '<span class="db-donut-dot" style="background:' + item.color + '"></span>' +
+        '<span>' + item.label + '</span>' +
+        '<strong>' + item.count + '</strong>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+/* Review butonunu buildCard'a ekle — done kartlarına */
+var _origBuildCard = buildCard;
+buildCard = function(task) {
+  var card = _origBuildCard(task);
+  if (task.status === 'done' || task.status === 'pending_approval') {
+    /* Karta review butonu ekle */
+    var actions = card.querySelector('.db-card-actions');
+    if (actions) {
+      var rvBtn = document.createElement('button');
+      rvBtn.className = 'db-card-btn';
+      rvBtn.title     = 'Review';
+      rvBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+      rvBtn.style.opacity = '1';
+      rvBtn.onclick = function(e) {
+        e.stopPropagation();
+        openReviewModal(task.id);
+      };
+      actions.insertBefore(rvBtn, actions.firstChild);
+    }
+  }
+  return card;
+};
+
+/* DOMContentLoaded'a ekstra init'leri bağla */
+document.addEventListener('DOMContentLoaded', function() {
+  initDashProjectFilter();
+  /* Dashboard açık geliyorsa chart'ı hemen çiz */
+  setTimeout(renderDashChart, 400);
+});
+
+/* Theme toggle'da chart'ı yenile */
+var _origThemeToggle = document.getElementById('themeToggle');
+if (_origThemeToggle) {
+  _origThemeToggle.addEventListener('click', function() {
+    setTimeout(renderDashChart, 300);
+  });
 }
