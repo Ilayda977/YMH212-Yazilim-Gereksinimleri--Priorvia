@@ -67,8 +67,16 @@ document.addEventListener('DOMContentLoaded', function() {
   renderMyTasks();
   renderNotificationsFull();
   renderArchive();
+  renderMyProfile();
   updateWelcome();
   updateUserInfo();
+  applyLanguage();
+  cleanOldActivities();
+  /* Her 10 dakikada bir eski aktiviteleri temizle */
+  setInterval(function() {
+    cleanOldActivities();
+    renderActivity();
+  }, 10 * 60 * 1000);
 });
 
 /* ── THEME ────────────────────────────────────── */
@@ -105,7 +113,8 @@ function updateUserInfo() {
   var ini = displayName.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
   setText('sidebarAvatar', ini);
   setText('sidebarName', displayName);
-  setText('sidebarRole', 'Proje Yöneticisi');
+  var roleLabels = { pm:'Proje Yöneticisi', member:'Ekip Üyesi', viewer:'Görüntüleyici' };
+  setText('sidebarRole', roleLabels[profile.role] || profile.title || 'Proje Yöneticisi');
   setText('topbarAvatar', ini);
   setText('topbarName', displayName.split(' ')[0]);
 }
@@ -140,7 +149,7 @@ function showView(view) {
 
   var allViewIds = [
     'viewDashboard','viewProjects','viewMyTasks','viewTeam',
-    'viewNotifications','viewCalendar','viewArchive','viewMyprofile'
+    'viewNotifications','viewCalendar','viewArchive','viewMyprofile','viewSettings'
   ];
   allViewIds.forEach(function(id) {
     var el = document.getElementById(id);
@@ -159,7 +168,8 @@ function showView(view) {
     notifications: 'Bildirimler',
     calendar:      'Takvim',
     archive:       'Arşiv',
-    myprofile:     'Profilim'
+    myprofile:     'Profilim',
+    settings:      'Ayarlar'
   };
   setText('breadcrumbCurrent', labels[view] || view);
 
@@ -171,7 +181,8 @@ function showView(view) {
     notifications: 'viewNotifications',
     calendar:      'viewCalendar',
     archive:       'viewArchive',
-    myprofile:     'viewMyprofile'
+    myprofile:     'viewMyprofile',
+    settings:      'viewSettings'
   };
   var el = document.getElementById(viewMap[view]);
   if (el) el.style.display = '';
@@ -183,6 +194,7 @@ function showView(view) {
   if (view === 'calendar')      renderCalendar();
   if (view === 'archive')       renderArchive();
   if (view === 'myprofile')     renderMyProfile();
+  if (view === 'settings')      renderSettings();
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -977,18 +989,39 @@ function updateAlerts() {
 
 /* ── ACTIVITY ─────────────────────────────────── */
 function addActivity(text, color) {
-  activities.unshift({ text: text, color: color||'green', time: Date.now() });
-  if (activities.length > 20) activities.pop();
+  var now = Date.now();
+  activities.unshift({ text: text, color: color||'green', time: now });
+  /* 48 saatten eski kayıtları sil */
+  var limit48h = now - (48 * 60 * 60 * 1000);
+  activities = activities.filter(function(a){ return a.time > limit48h; });
+  if (activities.length > 50) activities = activities.slice(0, 50);
   localStorage.setItem('priorvia_activity', JSON.stringify(activities));
+}
+
+function cleanOldActivities() {
+  var limit48h = Date.now() - (48 * 60 * 60 * 1000);
+  var before = activities.length;
+  activities = activities.filter(function(a){ return a.time > limit48h; });
+  if (activities.length !== before) {
+    localStorage.setItem('priorvia_activity', JSON.stringify(activities));
+  }
 }
 function renderActivity() {
   var list = document.getElementById('activityList');
   if (!list) return;
-  if (activities.length === 0) { list.innerHTML = '<p class="db-empty-sm">Henüz aktivite yok.</p>'; return; }
+  cleanOldActivities();
+  if (activities.length === 0) {
+    list.innerHTML = '<p class="db-empty-sm">Henüz aktivite yok.</p>';
+    return;
+  }
   list.innerHTML = activities.slice(0,8).map(function(a) {
-    return '<div class="db-activity-item"><div class="db-act-dot db-act-' + a.color + '"></div>' +
-      '<div><div style="font-size:12.5px;color:var(--text-primary)">' + escHtml(a.text) + '</div>' +
-      '<div class="db-act-time">' + timeAgo(a.time) + '</div></div></div>';
+    var ageHours = (Date.now() - a.time) / 3600000;
+    var expiring = ageHours > 40; /* 40+ saat ise soluk göster */
+    return '<div class="db-activity-item' + (expiring ? ' db-act-expiring' : '') + '">' +
+      '<div class="db-act-dot db-act-' + a.color + '"></div>' +
+      '<div style="flex:1"><div style="font-size:12.5px;color:var(--text-primary)">' + escHtml(a.text) + '</div>' +
+      '<div class="db-act-time">' + timeAgo(a.time) + ' · 48s içinde silinir</div></div>' +
+    '</div>';
   }).join('');
 }
 
@@ -1211,152 +1244,76 @@ function closeProfileModal() {
 
 /* ── PROFİLİM VIEW ────────────────────────────── */
 function renderMyProfile() {
-  var container = document.getElementById('myProfileContent');
-  if (!container) return;
-
   var profile = getMyProfile();
-  var ini = profile.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
-  var myTasks  = tasks.filter(function(t){ return t.assignee && t.assignee.toLowerCase() === profile.name.toLowerCase(); });
-  var myDone   = myTasks.filter(function(t){ return t.status === 'done'; }).length;
-  var myInProg = myTasks.filter(function(t){ return t.status === 'inprogress'; }).length;
-  var myProjects = projects.filter(function(p){ return p.members && p.members.length > 0; }).length;
+  var roleLabels = { pm:'Proje Yöneticisi', member:'Ekip Üyesi', viewer:'Görüntüleyici' };
+  var roleLabel  = roleLabels[profile.role] || profile.title || 'Proje Yöneticisi';
+  var ini = (profile.name || '?').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2) || '?';
 
-  container.innerHTML = [
-    '<div class="mprf-wrap">',
+  /* ── Sol panel ── */
+  setText('mprfAvatarDisp', ini);
+  setText('mprfNameDisp',   profile.name || '—');
 
-    '<div class="mprf-left">',
-      '<div class="mprf-avatar-card">',
-        '<div class="mprf-big-avatar">', ini, '</div>',
-        '<div class="mprf-name">', escHtml(profile.name), '</div>',
-        '<div class="mprf-role-tag">Proje Yöneticisi</div>',
-      '</div>',
+  var badgeEl = document.querySelector('#viewMyprofile .mprf-badge');
+  if (badgeEl) badgeEl.textContent = roleLabel;
 
-      '<div class="mprf-stats-card">',
-        '<div class="mprf-stat">',
-          '<div class="mprf-stat-val">', myTasks.length, '</div>',
-          '<div class="mprf-stat-lbl">Toplam Görev</div>',
-        '</div>',
-        '<div class="mprf-stat-divider"></div>',
-        '<div class="mprf-stat">',
-          '<div class="mprf-stat-val">', myDone, '</div>',
-          '<div class="mprf-stat-lbl">Tamamlandı</div>',
-        '</div>',
-        '<div class="mprf-stat-divider"></div>',
-        '<div class="mprf-stat">',
-          '<div class="mprf-stat-val">', myInProg, '</div>',
-          '<div class="mprf-stat-lbl">Devam Ediyor</div>',
-        '</div>',
-      '</div>',
+  setText('mprfListName',  profile.name  || '—');
+  setText('mprfListEmail', profile.email || '—');
+  setText('mprfListPhone', profile.phone || '—');
 
-      myTasks.length > 0 ? [
-        '<div class="mprf-recent-card">',
-          '<div class="mprf-sub-title">Son Görevlerim</div>',
-          myTasks.slice(0,4).map(function(t) {
-            var dot = { high:'#ef4444', med:'#f59e0b', low:'#22c55e' }[t.priority];
-            var stLbl = { todo:'Yapılacak', inprogress:'Devam', done:'Tamam' }[t.status];
-            return '<div class="mprf-task-row">' +
-              '<span class="mprf-task-dot" style="background:' + dot + '"></span>' +
-              '<span class="mprf-task-name">' + escHtml(t.title.substring(0,30)) + (t.title.length>30?'...':'') + '</span>' +
-              '<span class="mprf-task-st">' + stLbl + '</span>' +
-            '</div>';
-          }).join(''),
-        '</div>'
-      ].join('') : '',
-    '</div>',
+  var ghEl = document.getElementById('mprfListGithub');
+  if (ghEl) {
+    ghEl.textContent = profile.github || '—';
+    ghEl.href        = profile.github || '#';
+  }
 
-    '<div class="mprf-right">',
-      '<div class="mprf-form-card">',
-        '<div class="mprf-form-header">',
-          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-          '<span>Profil Bilgileri</span>',
-        '</div>',
-
-        '<div class="mprf-form-body">',
-          '<div class="mprf-field-group">',
-            '<div class="mprf-field">',
-              '<label class="mprf-label">Ad Soyad <span style="color:#e53e3e">*</span></label>',
-              '<input type="text" id="mprfName" class="db-input" value="', escHtml(profile.name), '" placeholder="Ad Soyad" />',
-            '</div>',
-            '<div class="mprf-field">',
-              '<label class="mprf-label">E-posta</label>',
-              '<div class="mprf-input-icon">',
-                '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
-                '<input type="email" id="mprfEmail" class="db-input mprf-with-icon" value="', escHtml(profile.email || ''), '" placeholder="ornek@email.com" />',
-              '</div>',
-            '</div>',
-          '</div>',
-
-          '<div class="mprf-field-group">',
-            '<div class="mprf-field">',
-              '<label class="mprf-label">Telefon</label>',
-              '<div class="mprf-input-icon">',
-                '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16h.27Z"/></svg>',
-                '<input type="tel" id="mprfPhone" class="db-input mprf-with-icon" value="', escHtml(profile.phone || ''), '" placeholder="+90 555 000 00 00" />',
-              '</div>',
-            '</div>',
-            '<div class="mprf-field">',
-              '<label class="mprf-label">GitHub</label>',
-              '<div class="mprf-input-icon">',
-                '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>',
-                '<input type="url" id="mprfGithub" class="db-input mprf-with-icon" value="', escHtml(profile.github || ''), '" placeholder="https://github.com/kullaniciadi" />',
-              '</div>',
-            '</div>',
-          '</div>',
-        '</div>',
-
-        '<div class="mprf-form-footer">',
-          '<button class="btn-ghost" onclick="renderMyProfile()">',
-            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.93"/></svg>',
-            'Sıfırla',
-          '</button>',
-          '<button class="btn-primary" onclick="saveMyProfileFromView()">',
-            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
-            'Değişiklikleri Kaydet',
-          '</button>',
-        '</div>',
-      '</div>',
-
-      '<div class="mprf-info-card">',
-        '<div class="mprf-sub-title" style="margin-bottom:12px">',
-          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
-          'Hesap Bilgileri',
-        '</div>',
-        '<div class="mprf-info-row">',
-          '<span class="mprf-info-key">Kullanıcı Adı</span>',
-          '<span class="mprf-info-val">', escHtml(profile.name), '</span>',
-        '</div>',
-        profile.email ? [
-          '<div class="mprf-info-row">',
-            '<span class="mprf-info-key">E-posta</span>',
-            '<span class="mprf-info-val">', escHtml(profile.email), '</span>',
-          '</div>'
-        ].join('') : '',
-        '<div class="mprf-info-row">',
-          '<span class="mprf-info-key">Rol</span>',
-          '<span class="db-role-badge db-role-pm">Proje Yöneticisi</span>',
-        '</div>',
-        '<div class="mprf-info-row">',
-          '<span class="mprf-info-key">Atanan Görevler</span>',
-          '<span class="mprf-info-val">', myTasks.length, ' görev</span>',
-        '</div>',
-      '</div>',
-    '</div>',
-
-    '</div>'
-  ].join('');
+  /* ── Sağ panel: formu doldur ── */
+  var nameEl   = document.getElementById('mprfName');
+  var emailEl  = document.getElementById('mprfEmail');
+  var phoneEl  = document.getElementById('mprfPhone');
+  var githubEl = document.getElementById('mprfGithub');
+  if (nameEl)   nameEl.value   = profile.name   || '';
+  if (emailEl)  emailEl.value  = profile.email  || '';
+  if (phoneEl)  phoneEl.value  = profile.phone  || '';
+  if (githubEl) githubEl.value = profile.github || '';
 }
 
 function saveMyProfileFromView() {
-  var name = document.getElementById('mprfName').value.trim();
+  var nameEl = document.getElementById('mprfName');
+  if (!nameEl) return;
+  var name = nameEl.value.trim();
   if (!name) { alert('Ad Soyad zorunludur.'); return; }
+
+  var existing = getMyProfile();
   var data = {
     name:   name,
-    email:  (document.getElementById('mprfEmail')  || {}).value || '',
-    phone:  (document.getElementById('mprfPhone')  || {}).value || '',
-    github: (document.getElementById('mprfGithub') || {}).value || ''
+    email:  (document.getElementById('mprfEmail')  || {}).value.trim() || '',
+    phone:  (document.getElementById('mprfPhone')  || {}).value.trim() || '',
+    github: (document.getElementById('mprfGithub') || {}).value.trim() || '',
+    role:   existing.role  || 'pm',
+    title:  existing.title || 'Proje Yöneticisi'
   };
-  saveMyProfile(data);
-  renderMyProfile();
+
+  /* localStorage'a kaydet */
+  localStorage.setItem('priorvia_myprofile', JSON.stringify(data));
+  currentUser = data.name;
+  localStorage.setItem('priorvia_user', data.name);
+
+  /* Sidebar'ı güncelle */
+  updateUserInfo();
+
+  /* Sol paneli kayıt sonrası güncelle */
+  var ini = name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2) || '?';
+  setText('mprfAvatarDisp', ini);
+  setText('mprfNameDisp', name);
+  setText('mprfListName', name);
+  setText('mprfListEmail', data.email || '—');
+  setText('mprfListPhone', data.phone || '—');
+  var ghEl = document.getElementById('mprfListGithub');
+  if (ghEl) {
+    ghEl.textContent = data.github || '—';
+    ghEl.href = data.github || '#';
+  }
+
   showSaveBar('Profil güncellendi.');
 }
 
@@ -1398,4 +1355,348 @@ function timeAgo(ts) {
   if (diff<3600000) return Math.floor(diff/60000)+' dk önce';
   if (diff<86400000) return Math.floor(diff/3600000)+' saat önce';
   return Math.floor(diff/86400000)+' gün önce';
+}
+/* ================================================
+   AYARLAR — settings.js — dashboard.js sonuna ekle
+   ================================================ */
+
+/* ── Sekme Geçişi ─────────────────────────────── */
+function sttTab(btn, tabId) {
+  document.querySelectorAll('.stt-nav-item').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.stt-tab').forEach(function(t){ t.style.display = 'none'; });
+  btn.classList.add('active');
+  var tab = document.getElementById('stt-' + tabId);
+  if (tab) tab.style.display = '';
+}
+
+/* ── Profil Yükle / Kaydet ────────────────────── */
+function sttLoadProfile() {
+  var p = getMyProfile();
+  var ini = p.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  var nameEl   = document.getElementById('sttName');
+  var emailEl  = document.getElementById('sttEmail');
+  var phoneEl  = document.getElementById('sttPhone');
+  var ghEl     = document.getElementById('sttGithub');
+  var avEl     = document.getElementById('sttAvatar');
+  var anEl     = document.getElementById('sttAvatarName');
+  var titleEl  = document.getElementById('sttTitle');
+  var roleEl   = document.getElementById('sttRoleSelect');
+  if (nameEl)  nameEl.value  = p.name   || '';
+  if (emailEl) emailEl.value = p.email  || '';
+  if (phoneEl) phoneEl.value = p.phone  || '';
+  if (ghEl)    ghEl.value    = p.github || '';
+  if (avEl)    avEl.textContent = ini || '?';
+  if (anEl)    anEl.textContent = p.name || '—';
+  if (titleEl) titleEl.value = p.title  || 'Proje Yöneticisi';
+  if (roleEl)  roleEl.value  = p.role   || 'pm';
+}
+
+function sttSaveProfile() {
+  var nameEl = document.getElementById('sttName');
+  if (!nameEl) return;
+  var name = nameEl.value.trim();
+  if (!name) { alert('Ad Soyad zorunludur.'); return; }
+  var titleEl = document.getElementById('sttTitle');
+  var roleEl  = document.getElementById('sttRoleSelect');
+  var data = {
+    name:   name,
+    email:  (document.getElementById('sttEmail')  || {}).value || '',
+    phone:  (document.getElementById('sttPhone')  || {}).value || '',
+    github: (document.getElementById('sttGithub') || {}).value || '',
+    title:  titleEl  ? titleEl.value.trim()  : '',
+    role:   roleEl   ? roleEl.value          : 'pm'
+  };
+  saveMyProfile(data);
+  sttLoadProfile();
+  showSaveBar('Profil güncellendi.');
+}
+
+/* ── Şifre Değiştir (simüle) ──────────────────── */
+function sttChangePassword() {
+  var old  = (document.getElementById('sttOldPw')  || {}).value || '';
+  var nw   = (document.getElementById('sttNewPw')  || {}).value || '';
+  var nw2  = (document.getElementById('sttNewPw2') || {}).value || '';
+  if (!old || !nw || !nw2) { alert('Tüm şifre alanlarını doldurun.'); return; }
+  if (nw !== nw2) { alert('Yeni şifreler eşleşmiyor.'); return; }
+  if (nw.length < 6) { alert('Şifre en az 6 karakter olmalıdır.'); return; }
+  document.getElementById('sttOldPw').value  = '';
+  document.getElementById('sttNewPw').value  = '';
+  document.getElementById('sttNewPw2').value = '';
+  showSaveBar('Şifre güncellendi.');
+}
+
+/* ── Tema Uygula ──────────────────────────────── */
+function sttApplyTheme(val) {
+  if (val === 'dark') {
+    darkMode = true;
+    document.body.classList.add('dark-mode');
+    setThemeIcon(true);
+  } else if (val === 'light') {
+    darkMode = false;
+    document.body.classList.remove('dark-mode');
+    setThemeIcon(false);
+  } else {
+    // system
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    darkMode = prefersDark;
+    document.body.classList.toggle('dark-mode', prefersDark);
+    setThemeIcon(prefersDark);
+  }
+  localStorage.setItem('priorvia_dark', darkMode ? '1' : '0');
+  localStorage.setItem('priorvia_theme_mode', val);
+  showSaveBar('Tema güncellendi.');
+}
+
+/* ── Dil Ayarı (simüle) ───────────────────────── */
+function sttSetLang(lang) {
+  localStorage.setItem('priorvia_lang', lang);
+  var checkTR = document.getElementById('langCheckTR');
+  var checkEN = document.getElementById('langCheckEN');
+  if (checkTR) checkTR.style.display = lang === 'tr' ? '' : 'none';
+  if (checkEN) checkEN.style.display = lang === 'en' ? '' : 'none';
+  showSaveBar('Dil ayarı kaydedildi. Sayfa yenilenince uygulanır.');
+}
+
+/* ── Bildirim Tercihlerini Kaydet ─────────────── */
+function sttSaveNotifPref() {
+  var prefs = {
+    notifNewTask:  (document.getElementById('notifNewTask')  || {}).checked,
+    notifDone:     (document.getElementById('notifDone')     || {}).checked,
+    notifDelete:   (document.getElementById('notifDelete')   || {}).checked,
+    notifDeadline: (document.getElementById('notifDeadline') || {}).checked,
+    emailDaily:    (document.getElementById('emailDaily')    || {}).checked,
+    emailWeekly:   (document.getElementById('emailWeekly')   || {}).checked,
+    actAdd:        (document.getElementById('actAdd')        || {}).checked,
+    actUpdate:     (document.getElementById('actUpdate')     || {}).checked,
+    actDelete:     (document.getElementById('actDelete')     || {}).checked,
+  };
+  localStorage.setItem('priorvia_notif_prefs', JSON.stringify(prefs));
+  showSaveBar('Bildirim tercihleri kaydedildi.');
+}
+
+/* ── Sütun İsimleri ───────────────────────────── */
+function sttSaveColumns() {
+  var cols = {
+    todo:       (document.getElementById('colTodo')   || {}).value || 'YAPILACAK',
+    inprogress: (document.getElementById('colInprog') || {}).value || 'DEVAM EDİYOR',
+    done:       (document.getElementById('colDone')   || {}).value || 'TAMAMLANDI'
+  };
+  localStorage.setItem('priorvia_col_labels', JSON.stringify(cols));
+  // Kanban başlıklarını güncelle
+  var todoTitle   = document.querySelector('.db-k-col[data-col="todo"] .db-k-title');
+  var progTitle   = document.querySelector('.db-k-col[data-col="inprogress"] .db-k-title');
+  var doneTitle   = document.querySelector('.db-k-col[data-col="done"] .db-k-title');
+  if (todoTitle) todoTitle.textContent = cols.todo;
+  if (progTitle) progTitle.textContent = cols.inprogress;
+  if (doneTitle) doneTitle.textContent = cols.done;
+  showSaveBar('Sütun isimleri güncellendi.');
+}
+
+/* ── Etiketler ────────────────────────────────── */
+function sttSaveTags() {
+  var tags = {
+    high: (document.getElementById('tagHigh') || {}).value || 'YÜKSEK',
+    med:  (document.getElementById('tagMed')  || {}).value || 'ORTA',
+    low:  (document.getElementById('tagLow')  || {}).value || 'DÜŞÜK'
+  };
+  localStorage.setItem('priorvia_tags', JSON.stringify(tags));
+  showSaveBar('Etiketler güncellendi.');
+}
+
+/* ── JSON Export ──────────────────────────────── */
+function sttExportJSON() {
+  var data = {
+    exportDate: new Date().toISOString(),
+    tasks:      JSON.parse(localStorage.getItem('priorvia_tasks')    || '[]'),
+    projects:   JSON.parse(localStorage.getItem('priorvia_projects') || '[]'),
+    team:       JSON.parse(localStorage.getItem('priorvia_team')     || '[]'),
+    archive:    JSON.parse(localStorage.getItem('priorvia_archive')  || '[]'),
+  };
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'priorvia-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showSaveBar('JSON dosyası indirildi.');
+}
+
+/* ── CSV Export ───────────────────────────────── */
+function sttExportCSV() {
+  var tasks = JSON.parse(localStorage.getItem('priorvia_tasks') || '[]');
+  var rows  = [['ID','Başlık','Açıklama','Öncelik','Durum','Atanan','Tarih','Proje']];
+  var projs = JSON.parse(localStorage.getItem('priorvia_projects') || '[]');
+  tasks.forEach(function(t) {
+    var proj = projs.find(function(p){ return p.id === t.projectId; });
+    rows.push([
+      t.id,
+      '"' + (t.title  || '').replace(/"/g,'""') + '"',
+      '"' + (t.desc   || '').replace(/"/g,'""') + '"',
+      t.priority   || '',
+      t.status     || '',
+      t.assignee   || '',
+      t.date       || '',
+      proj ? '"' + proj.name.replace(/"/g,'""') + '"' : ''
+    ]);
+  });
+  var csv  = rows.map(function(r){ return r.join(','); }).join('\n');
+  var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'priorvia-gorevler-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showSaveBar('CSV dosyası indirildi.');
+}
+
+/* ── Tehlikeli İşlemler ───────────────────────── */
+function sttClearTasks() {
+  if (!confirm('Tüm görevler silinecek. Bu işlem geri alınamaz. Emin misiniz?')) return;
+  tasks = [];
+  persist();
+  render();
+  renderMyTasks();
+  showSaveBar('Tüm görevler silindi.');
+}
+
+function sttClearArchive() {
+  if (!confirm('Arşiv temizlenecek. Bu işlem geri alınamaz. Emin misiniz?')) return;
+  archived = [];
+  localStorage.setItem('priorvia_archive', JSON.stringify(archived));
+  renderArchive();
+  showSaveBar('Arşiv temizlendi.');
+}
+
+function sttResetAll() {
+  if (!confirm('TÜM VERİLER silinecek (görevler, projeler, ekip, arşiv). Bu işlem GERİ ALINAMAZ. Devam etmek istiyor musunuz?')) return;
+  if (!confirm('Son onay: Tüm Priorvia verileriniz kalıcı olarak silinecek. Onaylıyor musunuz?')) return;
+  ['priorvia_tasks','priorvia_projects','priorvia_team','priorvia_archive',
+   'priorvia_notifs','priorvia_activity'].forEach(function(k){
+    localStorage.removeItem(k);
+  });
+  tasks=[]; projects=[]; teamMembers=[]; archived=[]; notifications=[]; activities=[];
+  render(); renderTeam(); renderProjects(); renderMyTasks(); renderNotificationsFull(); renderArchive();
+  showSaveBar('Tüm veriler sıfırlandı.');
+}
+
+/* ── Settings View render ─────────────────────── */
+function renderSettings() {
+  sttLoadProfile();
+
+  // Tema radio'larını doğru ayarla
+  var savedMode = localStorage.getItem('priorvia_theme_mode') || (darkMode ? 'dark' : 'light');
+  document.querySelectorAll('input[name="sttTheme"]').forEach(function(r){
+    r.checked = r.value === savedMode;
+  });
+
+  // Bildirim tercihlerini yükle
+  var prefs = JSON.parse(localStorage.getItem('priorvia_notif_prefs') || 'null') || {};
+  var defaults = { notifNewTask:true, notifDone:true, notifDeadline:true, emailWeekly:true, actAdd:true, actUpdate:true };
+  var merged = Object.assign({}, defaults, prefs);
+  Object.keys(merged).forEach(function(k) {
+    var el = document.getElementById(k);
+    if (el) el.checked = merged[k];
+  });
+
+  // Sütun isimlerini yükle
+  var cols = JSON.parse(localStorage.getItem('priorvia_col_labels') || 'null') || {};
+  if (document.getElementById('colTodo'))   document.getElementById('colTodo').value   = cols.todo       || 'YAPILACAK';
+  if (document.getElementById('colInprog')) document.getElementById('colInprog').value = cols.inprogress || 'DEVAM EDİYOR';
+  if (document.getElementById('colDone'))   document.getElementById('colDone').value   = cols.done       || 'TAMAMLANDI';
+
+  // Etiketleri yükle
+  var tags = JSON.parse(localStorage.getItem('priorvia_tags') || 'null') || {};
+  if (document.getElementById('tagHigh')) document.getElementById('tagHigh').value = tags.high || 'YÜKSEK';
+  if (document.getElementById('tagMed'))  document.getElementById('tagMed').value  = tags.med  || 'ORTA';
+  if (document.getElementById('tagLow'))  document.getElementById('tagLow').value  = tags.low  || 'DÜŞÜK';
+
+  // Dil
+  var lang = localStorage.getItem('priorvia_lang') || 'tr';
+  document.querySelectorAll('input[name="sttLang"]').forEach(function(r){ r.checked = r.value === lang; });
+  var checkTR = document.getElementById('langCheckTR');
+  var checkEN = document.getElementById('langCheckEN');
+  if (checkTR) checkTR.style.display = lang === 'tr' ? '' : 'none';
+  if (checkEN) checkEN.style.display = lang === 'en' ? '' : 'none';
+}
+
+
+
+
+
+/* ── DAVET LİNKİ ──────────────────────────────── */
+function generateInviteLink() {
+  var profile = getMyProfile();
+  var inviteCode = btoa(JSON.stringify({
+    invitedBy: profile.name,
+    team: 'Priorvia',
+    ts: Date.now()
+  }));
+  /* Local ortamda base URL */
+  var base = window.location.origin + window.location.pathname.replace('dashboard.html', '');
+  return base + 'homePage.html?invite=' + inviteCode;
+}
+
+function openInviteLinkModal() {
+  var link = generateInviteLink();
+  var modal = document.getElementById('inviteLinkModal');
+  var input = document.getElementById('inviteLinkInput');
+  if (input) input.value = link;
+  if (modal) modal.classList.add('open');
+  var overlay = document.getElementById('inviteLinkOverlay');
+  if (overlay) overlay.classList.add('open');
+}
+
+function closeInviteLinkModal() {
+  var modal = document.getElementById('inviteLinkModal');
+  var overlay = document.getElementById('inviteLinkOverlay');
+  if (modal) modal.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function copyInviteLink() {
+  var input = document.getElementById('inviteLinkInput');
+  if (!input) return;
+  input.select();
+  input.setSelectionRange(0, 99999);
+  try {
+    navigator.clipboard.writeText(input.value).then(function() {
+      showCopyFeedback();
+    }).catch(function() {
+      document.execCommand('copy');
+      showCopyFeedback();
+    });
+  } catch(e) {
+    document.execCommand('copy');
+    showCopyFeedback();
+  }
+}
+
+function showCopyFeedback() {
+  var btn = document.getElementById('copyLinkBtn');
+  if (!btn) return;
+  var orig = btn.innerHTML;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Kopyalandı!';
+  btn.style.background = 'var(--green-600)';
+  setTimeout(function() {
+    btn.innerHTML = orig;
+    btn.style.background = '';
+  }, 2000);
+  showSaveBar('Davet linki kopyalandı.');
+}
+
+function shareViaWhatsapp() {
+  var link = generateInviteLink();
+  var profile = getMyProfile();
+  var text = profile.name + ' sizi Priorvia ekibine davet etti! ' + link;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function shareViaEmail() {
+  var link = generateInviteLink();
+  var subject = profile.name + " sizi Priorvia'ya davet etti";
+  var subject = profile.name + " sizi Priorvia\u2019ya davet etti";
+  var body = 'Merhaba,%0A%0A' + profile.name + ' sizi Priorvia proje yönetim ekibine davet etti.%0A%0ADavet linkiniz: ' + link + '%0A%0APriorvia ile görevlerinizi kolayca yönetin.';
+  window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + body;
 }
