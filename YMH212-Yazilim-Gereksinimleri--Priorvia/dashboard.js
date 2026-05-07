@@ -813,21 +813,12 @@ function renderMyTasks() {
 
       /* Aksiyon butonları */
       '<div class="db-mytask-actions">' +
-        '<button class="db-card-btn" style="opacity:1" onclick="openEditDrawer(\'' + task.id + '\')">' +
-          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
-          ' Düzenle' +
-        '</button>' +
+        '<button class="db-action-pill db-action-edit" onclick="openEditDrawer(\'' + task.id + '\')">Düzenle</button>' +
         (task.status === 'done'
-          ? '<button class="db-card-btn" style="opacity:1" onclick="openReviewModal(\'' + task.id + '\')">' +
-              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
-              ' Review' +
-            '</button>'
+          ? '<button class="db-action-pill db-action-review" onclick="openReviewModal(\'' + task.id + '\')">👁 Review</button>'
           : '') +
         (task.status === 'done'
-          ? '<button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="archiveTask(\'' + task.id + '\')">' +
-              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>' +
-              ' Arşivle (PM)' +
-            '</button>'
+          ? '<button class="db-action-pill db-action-archive" onclick="archiveTask(\'' + task.id + '\')">Arşivle (PM)</button>'
           : '') +
       '</div>' +
 
@@ -904,8 +895,9 @@ function updateNotifBadge() {
 
   notifList.innerHTML = allNotifs.slice(0,8).map(function(n) {
     var ti = typeIcon[n.type] || typeIcon.info;
-    return '<div class="db-notif-item unread">' +
-      '<div class="db-notif-icon ' + ti.cls + '">' + ti.icon + '</div>' +
+    var isComment = n.text && n.text.indexOf('yorum') !== -1;
+    return '<div class="db-notif-item unread' + (isComment ? ' db-notif-comment' : '') + '">' +
+      '<div class="db-notif-icon ' + ti.cls + '">' + (isComment ? '💬' : ti.icon) + '</div>' +
       '<div><div class="db-notif-title">' + escHtml(n.text) + '</div>' +
       '<div class="db-notif-time">' + timeAgo(n.time) + '</div></div></div>';
   }).join('');
@@ -1997,22 +1989,19 @@ function updateDashStats() {
   setText('chartProjLabel', proj ? proj.name : 'Tüm Projeler');
 }
 
+var _reviewTaskId = null;
+
 function openReviewModal(taskId) {
   var task = tasks.find(function(t){ return t.id === taskId; });
   if (!task) return;
 
+  _reviewTaskId = taskId;
+
   var pLabel    = { high:'YÜKSEK', med:'ORTA', low:'DÜŞÜK' }[task.priority] || 'ORTA';
-  var statusMap = {
-    todo:'Yapılacak', inprogress:'Devam Ediyor',
-    done:'Tamamlandı', pending_approval:'PM Onayı Bekliyor'
-  };
-  var statusCls = {
-    todo:'db-mt-todo', inprogress:'db-mt-prog',
-    done:'db-mt-done', pending_approval:'db-mt-pending'
-  };
+  var statusMap = { todo:'Yapılacak', inprogress:'Devam Ediyor', done:'Tamamlandı', pending_approval:'PM Onayı Bekliyor' };
+  var statusCls = { todo:'db-mt-todo', inprogress:'db-mt-prog', done:'db-mt-done', pending_approval:'db-mt-pending' };
   var proj = projects.find(function(p){ return p.id === task.projectId; });
 
-  /* Priority + status */
   var prEl = document.getElementById('rvPriority');
   if (prEl) { prEl.textContent = pLabel; prEl.className = 'priority-tag ' + task.priority; }
   var stEl = document.getElementById('rvStatus');
@@ -2030,38 +2019,46 @@ function openReviewModal(taskId) {
     else { descEl.style.display = 'none'; }
   }
 
-  /* Avatar */
   var profile = getMyProfile();
   var ini = (profile.name || currentUser).split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
   setText('rvMyAvatar', ini);
 
-  /* Yorum alanını temizle */
   var inp = document.getElementById('rvCommentInput');
-  if (inp) inp.value = '';
+  var charCount = document.getElementById('rvCharCount');
+  if (inp) {
+    inp.value = '';
+    inp.oninput = function() {
+      if (charCount) charCount.textContent = inp.value.length + ' / 500';
+    };
+    inp.onkeydown = function(e) {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); submitReviewComment(); }
+    };
+  }
+  if (charCount) charCount.textContent = '0 / 500';
 
-  /* Mevcut yorumları yükle */
   renderReviewComments(task.id);
 
-  /* Butonlara task id bağla */
   var editBtn = document.getElementById('rvEditBtn');
   if (editBtn) editBtn.onclick = function() { closeReviewModal(); openEditDrawer(task.id); };
+
   var archBtn = document.getElementById('rvArchiveBtn');
   if (archBtn) {
     archBtn.style.display = task.status === 'done' ? '' : 'none';
     archBtn.onclick = function() { closeReviewModal(); archiveTask(task.id); };
   }
 
-  /* Modal'ı aç */
   document.getElementById('reviewModal').classList.add('open');
   document.getElementById('reviewOverlay').classList.add('open');
 
-  /* Bildirim gönder — review açıldı */
-  var reviewerName = profile.name || currentUser;
-  addNotif('"' + task.title + '" görevi ' + reviewerName + ' tarafından incelendi', 'update');
+  addNotif('"' + task.title + '" görevi ' + (profile.name || currentUser) + ' tarafından incelendi', 'update');
+
+  setTimeout(function() { if (inp) inp.focus(); }, 300);
 }
+
 function closeReviewModal() {
   document.getElementById('reviewModal').classList.remove('open');
   document.getElementById('reviewOverlay').classList.remove('open');
+  _reviewTaskId = null;
 }
 
 /* ── CHART.JS — Burndown + Donut ────────────────── */
@@ -2303,7 +2300,7 @@ function saveTaskComment(taskId, comment) {
 
 /* Yorumları render et */
 function renderReviewComments(taskId) {
-  var list   = document.getElementById('rvCommentsList');
+  var list    = document.getElementById('rvCommentsList');
   var countEl = document.getElementById('rvCommentCount');
   if (!list) return;
 
@@ -2311,17 +2308,20 @@ function renderReviewComments(taskId) {
   if (countEl) countEl.textContent = comments.length;
 
   if (comments.length === 0) {
-    list.innerHTML = '<p class="db-empty-sm">Henüz yorum yok.</p>';
+    list.innerHTML = '<p class="db-empty-sm" style="padding:16px">Henüz yorum yok. İlk yorumu sen yap!</p>';
     return;
   }
 
+  var profile = getMyProfile();
   list.innerHTML = comments.map(function(c) {
-    var ini = (c.author || '?').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+    var ini    = (c.author || '?').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+    var isMine = c.author === (profile.name || currentUser);
     return '<div class="rv-comment-item">' +
-      '<div class="rv-comment-avatar">' + escHtml(ini) + '</div>' +
+      '<div class="rv-comment-avatar" style="' + (isMine ? 'background:var(--green-800)' : '') + '">' + escHtml(ini) + '</div>' +
       '<div class="rv-comment-body">' +
         '<div class="rv-comment-meta">' +
           '<strong>' + escHtml(c.author) + '</strong>' +
+          (isMine ? '<span style="background:var(--green-100);color:var(--green-700);font-size:10px;padding:1px 6px;border-radius:20px;font-weight:600">Sen</span>' : '') +
           '<span>' + timeAgo(c.time) + '</span>' +
         '</div>' +
         '<div class="rv-comment-text">' + escHtml(c.text) + '</div>' +
@@ -2329,27 +2329,20 @@ function renderReviewComments(taskId) {
     '</div>';
   }).join('');
 
-  /* En alta kaydır */
   list.scrollTop = list.scrollHeight;
 }
 
-/* Yorum gönder */
 function submitReviewComment() {
-  var inp    = document.getElementById('rvCommentInput');
-  var taskId = document.getElementById('rvEditBtn') ? null : null;
-
-  /* Aktif task id'yi bul — rvEditBtn'in onclick'inden al */
-  var editBtn = document.getElementById('rvEditBtn');
-  if (!editBtn || !editBtn.onclick) { alert('Görev bulunamadı.'); return; }
-
-  /* Task id'yi başlıktan bul */
-  var titleEl = document.getElementById('rvTitle');
-  var taskTitle = titleEl ? titleEl.textContent : '';
-  var task = tasks.find(function(t){ return t.title === taskTitle; });
-  if (!task) { alert('Görev bulunamadı.'); return; }
-
+  var inp  = document.getElementById('rvCommentInput');
   var text = inp ? inp.value.trim() : '';
-  if (!text) { inp.focus(); return; }
+  if (!text) {
+    if (inp) { inp.style.borderBottom = '2px solid #ef4444'; inp.focus(); setTimeout(function(){ inp.style.borderBottom = ''; }, 1500); }
+    return;
+  }
+
+  if (!_reviewTaskId) { alert('Görev bulunamadı.'); return; }
+  var task = tasks.find(function(t){ return t.id === _reviewTaskId; });
+  if (!task) { alert('Görev bulunamadı.'); return; }
 
   var profile = getMyProfile();
   var comment = {
@@ -2361,18 +2354,23 @@ function submitReviewComment() {
   };
 
   saveTaskComment(task.id, comment);
-
-  /* Yorumu ekrana yansıt */
   renderReviewComments(task.id);
 
-  /* Input'u temizle */
-  if (inp) inp.value = '';
+  if (inp) {
+    inp.value = '';
+    var charCount = document.getElementById('rvCharCount');
+    if (charCount) charCount.textContent = '0 / 500';
+  }
 
-  /* Bildirim: görev sahibine yorum bildirimi */
-  addNotif(
-    '"' + task.title + '" görevine ' + (profile.name || currentUser) + ' yorum ekledi',
-    'update'
-  );
+  var commenterName = profile.name || currentUser;
+  var taskOwner     = task.assignee || '';
+  var myName        = (profile.name || currentUser).toLowerCase().trim();
+
+  if (taskOwner && taskOwner.toLowerCase().trim() !== myName) {
+    addNotif('🗨 ' + commenterName + ', "' + task.title + '" görevine yorum ekledi — ' + text.substring(0, 40) + (text.length > 40 ? '...' : ''), 'update');
+  } else {
+    addNotif('"' + task.title + '" görevine yeni yorum: ' + text.substring(0, 40) + (text.length > 40 ? '...' : ''), 'update');
+  }
 
   showSaveBar('Yorum eklendi.');
 }
