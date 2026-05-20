@@ -496,6 +496,8 @@ function saveTask() {
   render();
   renderMyTasks();
   renderProjects();
+  clearDismissedAlerts();
+  updateAlerts();
   closeDrawer();
 }
 
@@ -1189,6 +1191,13 @@ function buildCard(task) {
   card.addEventListener('dragstart', function(){ dragId = task.id; });
 
   var pLabel = { high:'YÜKSEK', med:'ORTA', low:'DÜŞÜK' }[task.priority] || '';
+  var today = new Date(); today.setHours(0,0,0,0);
+  var isOverdue = task.date && new Date(task.date) < today && task.status !== 'done';
+  if (isOverdue) card.classList.add('overdue');
+
+  var overdueHTML = isOverdue
+  ? '<span class="db-overdue-badge" style="font-size:10.5px;font-weight:700;color:#dc2626;background:#fee2e2;padding:2px 7px;border-radius:20px;margin-left:4px">⚠ GECİKMİŞ</span>'
+  : '';
 
   var progressHTML = '';
   if (task.status === 'inprogress' && task.progress > 0) {
@@ -1211,7 +1220,8 @@ function buildCard(task) {
 
   card.innerHTML =
     '<div class="db-card-top"><span class="priority-tag ' + task.priority + '">' + pLabel + '</span>' +
-    '<div class="db-card-actions">' + archiveBtn +
+    overdueHTML +
+   '<div class="db-card-actions">' + archiveBtn +
       '<button class="db-card-btn" title="Düzenle" onclick="openEditDrawer(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>' +
       '<button class="db-card-btn danger" title="Sil" onclick="deleteTask(\'' + task.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>' +
     '</div></div>' +
@@ -1235,6 +1245,8 @@ function onDrop(e, col) {
   dragId = null;
   persist();
   render();
+  clearDismissedAlerts();
+  updateAlerts();
   showSaveBar('Görev taşındı.');
 }
 
@@ -1266,17 +1278,71 @@ function updateStats() {
 function updateAlerts() {
   var list = document.getElementById('alertList');
   if (!list) return;
-  var today = new Date(); today.setHours(0,0,0,0);
-  var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
-  var urgent = tasks.filter(function(t){ return t.date && t.status !== 'done' && new Date(t.date) <= tomorrow; });
-  if (urgent.length === 0) { list.innerHTML = '<p class="db-empty-sm">Yaklaşan teslim tarihi yok.</p>'; return; }
+
+  var now = new Date();
+  var in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  /* Kapatılmış uyarıları oku */
+  var dismissed = JSON.parse(localStorage.getItem('priorvia_dismissed_alerts') || '[]');
+
+  var urgent = tasks.filter(function(t) {
+    if (t.status === 'done') return false;
+    if (!t.date) return false;
+    var deadline = new Date(t.date);
+    deadline.setHours(23, 59, 59, 0);
+    /* Teslim tarihi geçmiş veya 24 saat içinde olan, kapatılmamış görevler */
+    return deadline <= in24h && dismissed.indexOf(t.id) === -1;
+  });
+
+  if (urgent.length === 0) {
+    list.innerHTML = '<p class="db-empty-sm">Yaklaşan teslim tarihi yok.</p>';
+    return;
+  }
+
   list.innerHTML = urgent.map(function(t) {
-    var d = new Date(t.date); var today2 = new Date(); today2.setHours(0,0,0,0);
-    var ov = d < today2;
-    return '<div class="db-alert-item"><div class="db-alert-dot ' + (ov?'db-dot-red':'db-dot-orange') + '"></div>' +
-      '<div><div class="db-alert-title">' + escHtml(t.title) + '</div>' +
-      '<div class="db-alert-sub">Teslim: <strong>' + formatDate(d) + '</strong>' + (ov?' — gecikmiş':'') + '</div></div></div>';
+    var deadline = new Date(t.date);
+    deadline.setHours(23, 59, 59, 0);
+    var isOverdue = deadline < now;
+    var isToday   = deadline.toDateString() === now.toDateString();
+
+    var label = isOverdue ? '⚠ Gecikmiş — ' + Math.floor((now - deadline) / 86400000) + ' gün önce doldu' 
+            : isToday ? 'Bugün teslim' 
+            : 'Yarın teslim';
+    var dotCls = isOverdue ? 'db-dot-red' : 'db-dot-orange';
+
+    return '<div class="db-alert-item">' +
+      '<div class="db-alert-dot ' + dotCls + '"></div>' +
+      '<div style="flex:1">' +
+        '<div class="db-alert-title">' + escHtml(t.title) + '</div>' +
+        '<div class="db-alert-sub">' + label + ': <strong>' + formatDate(deadline) + '</strong></div>' +
+      '</div>' +
+      '<button class="db-alert-dismiss" title="Uyarıyı kapat" onclick="dismissAlert(\'' + t.id + '\')">' +
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+      '</button>' +
+    '</div>';
   }).join('');
+}
+
+function dismissAlert(taskId) {
+  var dismissed = JSON.parse(localStorage.getItem('priorvia_dismissed_alerts') || '[]');
+  if (dismissed.indexOf(taskId) === -1) dismissed.push(taskId);
+  localStorage.setItem('priorvia_dismissed_alerts', JSON.stringify(dismissed));
+  updateAlerts();
+  updateNotifBadge();
+}
+
+function clearDismissedAlerts() {
+  var dismissed = JSON.parse(localStorage.getItem('priorvia_dismissed_alerts') || '[]');
+  var activeIds = tasks.map(function(t){ return t.id; });
+  /* Silinen task'ların dismiss kaydını temizle */
+  dismissed = dismissed.filter(function(id){ return activeIds.indexOf(id) !== -1; });
+  /* Tamamlanan görevleri otomatik olarak dismiss listesine ekle */
+  tasks.forEach(function(t){
+    if (t.status === 'done' && dismissed.indexOf(t.id) === -1) {
+      dismissed.push(t.id);
+    }
+  });
+  localStorage.setItem('priorvia_dismissed_alerts', JSON.stringify(dismissed));
 }
 
 /* ── ACTIVITY ─────────────────────────────────── */
@@ -1879,8 +1945,10 @@ function updateWelcome() {
 }
 
 /* ── PERSIST ──────────────────────────────────── */
-function persist() { localStorage.setItem('priorvia_tasks', JSON.stringify(tasks)); }
-
+function persist() {
+  localStorage.setItem('priorvia_tasks', JSON.stringify(tasks));
+  clearDismissedAlerts();
+}
 /* ── SAVE BAR ─────────────────────────────────── */
 var saveBarTimer = null;
 function showSaveBar(msg) {
