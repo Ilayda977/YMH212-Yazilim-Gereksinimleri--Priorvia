@@ -491,7 +491,7 @@ function archiveTask(id) {
   showSaveBar('Görev arşive taşındı.');
 }
 
-/* ── ARCHIVE RENDER ───────────────────────────── */
+/* ── ARŞİV RENDER ───────────────────────────────────────────────────────── */
 function renderArchive() {
   var list = document.getElementById('archiveList');
   if (!list) return;
@@ -501,7 +501,7 @@ function renderArchive() {
   }
 
   var html = '<div class="db-archive-table">';
-  html += '<div class="db-archive-header"><span>GÖREV</span><span>ATANAN</span><span>PROJE</span><span>TAMAMLANMA</span><span>ARŞİVLEYEN PM</span></div>';
+  html += '<div class="db-archive-header"><span>GÖREV</span><span>ATANAN</span><span>PROJE</span><span>TAMAMLANMA</span><span>ARŞİVLEYEN PM</span><span></span></div>';
 
   archived.slice().reverse().forEach(function(t) {
     var proj = projects.find(function(p){ return p.id === t.projectId; });
@@ -515,10 +515,30 @@ function renderArchive() {
       '<div>' + (proj ? '<span class="db-proj-badge db-proj-' + proj.color + '">' + escHtml(proj.name) + '</span>' : '—') + '</div>' +
       '<div class="db-archive-date">' + doneDate + '</div>' +
       '<div class="db-archive-pm"><span class="db-role-badge db-role-pm">' + escHtml(t.archivedBy || currentUser) + '</span></div>' +
+      '<div style="text-align:right">' +
+        '<button class="db-remove-btn" title="Arşivden Sil" onclick="deleteArchivedTask(\'' + t.id + '\')">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+            '<polyline points="3 6 5 6 21 6"/>' +
+            '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+            '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>' +
+          '</svg>' +
+        '</button>' +
+      '</div>' +
     '</div>';
   });
   html += '</div>';
   list.innerHTML = html;
+}
+
+function deleteArchivedTask(id) {
+  var task = archived.find(function(t){ return t.id === id; });
+  if (!task) return;
+  if (!confirm('"' + task.title + '" arşivden kalıcı olarak silinecek. Emin misiniz?')) return;
+  archived = archived.filter(function(t){ return t.id !== id; });
+  localStorage.setItem('priorvia_archive', JSON.stringify(archived));
+  addActivity('"' + task.title + '" arşivden silindi', 'orange');
+  renderArchive();
+  showSaveBar('Görev arşivden silindi.');
 }
 
 /* ── PROJECTS ─────────────────────────────────── */
@@ -921,7 +941,7 @@ function renderNotificationsFull() {
   urgentTasks.forEach(function(t) {
     var d = new Date(t.date); var tod = new Date(); tod.setHours(0,0,0,0);
     var ov = d < tod;
-    allNotifs.push({ id: 'task_' + t.id, text: (ov ? 'Gecikmiş görev: ' : 'Yaklaşan teslim: ') + t.title + ' — ' + formatDate(d), type: ov?'warn':'info', time: Date.now(), read: false });
+    allNotifs.push({ id: 'task_' + t.id, text: (ov ? 'Gecikmiş görev: ' : 'Yaklaşan teslim: ') + t.title + ' — ' + formatDate(d), type: ov?'warn':'info', time: Date.now(), read: false, _system: true });
   });
   notifications.forEach(function(n){ allNotifs.push(n); });
 
@@ -934,13 +954,31 @@ function renderNotificationsFull() {
   var typeCls   = { new:'db-ni-green', update:'db-ni-blue', warn:'db-ni-orange', archive:'db-ni-purple', info:'db-ni-blue' };
   var typeLabel = { new:'Yeni', update:'Güncelleme', warn:'Uyarı', archive:'Arşiv', info:'Bilgi' };
 
-  list.innerHTML = '<div class="db-notif-full-grid">' + allNotifs.map(function(n) {
+  var toolbar = '<div class="db-notif-toolbar" id="notifToolbar">' +
+    '<label class="db-notif-select-all">' +
+      '<input type="checkbox" id="notifSelectAll" onchange="toggleSelectAllNotifs(this)" />' +
+      '<span>Tümünü Seç</span>' +
+    '</label>' +
+    '<span class="db-notif-sel-count" id="notifSelCount" style="display:none">0 seçildi</span>' +
+    '<button class="stt-danger-btn" id="notifDeleteSelBtn" style="display:none;padding:6px 13px;font-size:12px" onclick="deleteSelectedNotifs()">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
+      'Seçilenleri Sil' +
+    '</button>' +
+  '</div>';
+
+  var rows = allNotifs.map(function(n) {
     var ti = typeIcon[n.type] || 'ℹ';
     var tc = typeCls[n.type] || 'db-ni-blue';
     var tl = typeLabel[n.type] || 'Bilgi';
-    return '<div class="db-notif-full-row' + (n.read?'':' unread') + '" onclick="markNotifRead(\'' + n.id + '\')">' +
+    var isDeletable = !n._system; /* sistem (görev tarih) bildirimlerini silinemez yap */
+    return '<div class="db-notif-full-row' + (n.read?'':' unread') + '" data-id="' + escHtml(n.id) + '">' +
+      (isDeletable
+        ? '<label class="db-notif-cb-wrap" onclick="event.stopPropagation()">' +
+            '<input type="checkbox" class="db-notif-cb" value="' + escHtml(n.id) + '" onchange="onNotifCbChange()" />' +
+          '</label>'
+        : '<div style="width:24px;flex-shrink:0"></div>') +
       '<div class="db-notif-icon ' + tc + '" style="width:36px;height:36px;font-size:16px">' + ti + '</div>' +
-      '<div style="flex:1">' +
+      '<div style="flex:1" onclick="markNotifRead(\'' + escHtml(n.id) + '\')">' +
         '<div class="db-notif-title">' + escHtml(n.text) + '</div>' +
         '<div style="display:flex;gap:8px;margin-top:3px">' +
           '<span class="db-role-badge" style="background:var(--green-100);color:var(--green-700)">' + tl + '</span>' +
@@ -948,8 +986,51 @@ function renderNotificationsFull() {
         '</div>' +
       '</div>' +
       (!n.read ? '<div class="db-unread-dot"></div>' : '') +
+      (isDeletable
+        ? '<button class="db-notif-del-btn" title="Sil" onclick="event.stopPropagation();deleteSingleNotif(\'' + escHtml(n.id) + '\')">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+          '</button>'
+        : '') +
     '</div>';
-  }).join('') + '</div>';
+  }).join('');
+
+  list.innerHTML = toolbar + '<div class="db-notif-full-grid">' + rows + '</div>';
+}
+
+/* ── Bildirim seçim yardımcıları ─────────────────────────────────────────── */
+function onNotifCbChange() {
+  var cbs  = document.querySelectorAll('.db-notif-cb');
+  var sel  = document.querySelectorAll('.db-notif-cb:checked');
+  var all  = document.getElementById('notifSelectAll');
+  var cnt  = document.getElementById('notifSelCount');
+  var btn  = document.getElementById('notifDeleteSelBtn');
+  if (all) all.checked = sel.length > 0 && sel.length === cbs.length;
+  if (cnt) { cnt.textContent = sel.length + ' seçildi'; cnt.style.display = sel.length > 0 ? '' : 'none'; }
+  if (btn)   btn.style.display = sel.length > 0 ? '' : 'none';
+}
+
+function toggleSelectAllNotifs(masterCb) {
+  document.querySelectorAll('.db-notif-cb').forEach(function(cb){ cb.checked = masterCb.checked; });
+  onNotifCbChange();
+}
+
+function deleteSingleNotif(id) {
+  notifications = notifications.filter(function(n){ return n.id !== id; });
+  localStorage.setItem('priorvia_notifs', JSON.stringify(notifications));
+  updateNotifBadge();
+  renderNotificationsFull();
+  showSaveBar('Bildirim silindi.');
+}
+
+function deleteSelectedNotifs() {
+  var selected = Array.from(document.querySelectorAll('.db-notif-cb:checked')).map(function(cb){ return cb.value; });
+  if (selected.length === 0) return;
+  if (!confirm(selected.length + ' bildirim silinecek. Emin misiniz?')) return;
+  notifications = notifications.filter(function(n){ return selected.indexOf(n.id) === -1; });
+  localStorage.setItem('priorvia_notifs', JSON.stringify(notifications));
+  updateNotifBadge();
+  renderNotificationsFull();
+  showSaveBar(selected.length + ' bildirim silindi.');
 }
 
 /* ── CALENDAR ─────────────────────────────────── */

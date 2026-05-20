@@ -3451,3 +3451,78 @@ body.dark-mode .db-team-proj-selector {
   background: #1e2d22;
   border-color: #253825;
 }
+/* ── Arşiv: silme butonu sütunu ──────────────── */
+.db-archive-header,
+.db-archive-row {
+  grid-template-columns: 1fr 140px 120px 100px 160px 44px;
+}
+
+/* ── Bildirimler: toolbar ────────────────────── */
+.db-notif-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--green-50);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.db-notif-select-all {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.db-notif-select-all input {
+  width: 15px; height: 15px;
+  accent-color: var(--green-700);
+  cursor: pointer;
+}
+.db-notif-sel-count {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--green-700);
+  background: var(--green-100);
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+/* Checkbox wrapper */
+.db-notif-cb-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.db-notif-cb-wrap input {
+  width: 14px; height: 14px;
+  accent-color: var(--green-700);
+  cursor: pointer;
+}
+
+/* Satır sil butonu */
+.db-notif-del-btn {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, background .15s, color .15s;
+  flex-shrink: 0;
+}
+.db-notif-full-row:hover .db-notif-del-btn { opacity: 1; }
+.db-notif-del-btn:hover { background: #fee2e2; color: #e53e3e; }
+
+/* Dark mode */
+body.dark-mode .db-notif-toolbar    { background: #111c16; border-color: #253825; }
+body.dark-mode .db-notif-sel-count  { background: #152019; color: #4ade80; }
