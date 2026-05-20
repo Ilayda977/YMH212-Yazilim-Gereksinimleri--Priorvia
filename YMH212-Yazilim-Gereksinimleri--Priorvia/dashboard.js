@@ -179,6 +179,10 @@ function getMyProfile() {
 }
 
 function saveMyProfile(data) {
+  /* Mevcut profildeki id'yi koru */
+  var existing = JSON.parse(localStorage.getItem('priorvia_myprofile') || 'null') || {};
+  if (!data.id) data.id = existing.id || ('pm_' + Date.now());
+ 
   localStorage.setItem('priorvia_myprofile', JSON.stringify(data));
   currentUser = data.name;
   localStorage.setItem('priorvia_user', data.name);
@@ -327,38 +331,43 @@ function populateProjectDropdown(selectedId) {
 }
 function populateAssigneeSelect(selectedValue, projectId) {
   var sel = document.getElementById('fAssignee');
-  if (!sel || sel.tagName !== 'SELECT') return; /* HTML henüz güncellenmemişse çık */
-
+  if (!sel || sel.tagName !== 'SELECT') return;
+ 
   sel.innerHTML = '<option value="">— Kişi Seçin —</option>';
   sel.disabled = true;
-
+ 
   fetchProjectMembers(projectId).then(function(members) {
     sel.innerHTML = '<option value="">— Kişi Seçin —</option>';
-
-    /* Ekipte kimse yoksa elle giriş seçeneği sun */
+ 
     if (!members || members.length === 0) {
-      var opt = document.createElement('option');
-      opt.value = selectedValue;
-      opt.textContent = selectedValue || 'Ekip üyesi yok';
-      if (selectedValue) { opt.selected = true; sel.appendChild(opt); }
       sel.disabled = false;
       return;
     }
-
+ 
+    /* Önce mevcut profilin sahibini (PM) ekle */
+    var myProfile = getMyProfile();
+    var myId      = myProfile.id || 'me';
+ 
     members.forEach(function(m) {
-      var name = m.name || m.email || m;
-      var val  = name;
-      var opt  = document.createElement('option');
-      opt.value = val;
-
-      /* Avatar baş harflerini label'a ekle */
+      var name   = m.name || m.email || m;
+      var id     = m.id   || name;
+      var email  = m.email || '';
+      /* value: "memberId|memberName|memberEmail" — ayırıcı pipe */
+      var val    = id + '|' + name + '|' + email;
+      var opt    = document.createElement('option');
+      opt.value  = val;
+ 
       var ini = name.split(' ').map(function(w){ return w[0] || ''; }).join('').toUpperCase().slice(0, 2);
-      opt.textContent = ini + '  ' + name;
-
-      if (val === selectedValue || name === selectedValue) opt.selected = true;
+      opt.textContent = ini + '  ' + name + (email ? ' (' + email + ')' : '');
+ 
+      /* Seçimi hem ID hem isimle eşleştir (geriye dönük uyum) */
+      if (selectedValue === id || selectedValue === name || selectedValue === val) {
+        opt.selected = true;
+      }
+ 
       sel.appendChild(opt);
     });
-
+ 
     sel.disabled = false;
   });
 }
@@ -404,10 +413,16 @@ function openEditDrawer(id) {
   document.getElementById('progressVal').textContent = task.progress || 0;
   document.getElementById('progressGroup').style.display = task.status === 'inprogress' ? 'flex' : 'none';
   populateProjectDropdown(task.projectId || '');
-
-  /* Assignee select'i doldur — mevcut değeri seç */
-  populateAssigneeSelect(task.assignee || '', task.projectId || '');
-
+ 
+  /* Assignee'yi ID|name|email formatında seç */
+  var assigneeVal = '';
+  if (task.assigneeId) {
+    assigneeVal = task.assigneeId + '|' + (task.assignee || '') + '|' + (task.assigneeEmail || '');
+  } else {
+    assigneeVal = task.assignee || '';
+  }
+  populateAssigneeSelect(assigneeVal, task.projectId || '');
+ 
   document.getElementById('taskDrawer').classList.add('open');
   document.getElementById('dbOverlay').classList.add('open');
   document.getElementById('fTitle').focus();
@@ -432,35 +447,51 @@ function saveTask() {
     document.getElementById('fTitleErr').classList.add('show');
     return;
   }
+ 
+  /* Assignee alanını parse et: "id|name|email" ya da eski "name" formatı */
+  var rawAssignee   = document.getElementById('fAssignee').value.trim();
+  var assigneeName  = rawAssignee;
+  var assigneeId    = '';
+  var assigneeEmail = '';
+ 
+  if (rawAssignee.indexOf('|') !== -1) {
+    var parts      = rawAssignee.split('|');
+    assigneeId     = parts[0] || '';
+    assigneeName   = parts[1] || '';
+    assigneeEmail  = parts[2] || '';
+  }
+ 
   var taskData = {
-    title:     title,
-    desc:      document.getElementById('fDesc').value.trim(),
-    priority:  document.getElementById('fPriority').value,
-    date:      document.getElementById('fDate').value,
-    assignee:  document.getElementById('fAssignee').value.trim(),
-    status:    document.getElementById('fStatus').value,
-    progress:  parseInt(document.getElementById('fProgress').value) || 0,
-    projectId: document.getElementById('fProject').value || ''
+    title:        title,
+    desc:         document.getElementById('fDesc').value.trim(),
+    priority:     document.getElementById('fPriority').value,
+    date:         document.getElementById('fDate').value,
+    assignee:     assigneeName,
+    assigneeId:   assigneeId,
+    assigneeEmail:assigneeEmail,
+    status:       document.getElementById('fStatus').value,
+    progress:     parseInt(document.getElementById('fProgress').value) || 0,
+    projectId:    document.getElementById('fProject').value || ''
   };
-
+ 
   if (editId) {
     tasks = tasks.map(function(t){ return t.id === editId ? Object.assign({}, t, taskData) : t; });
     addActivity('"' + title + '" güncellendi', 'orange');
     addNotif('Görev güncellendi: ' + title, 'update');
     showSaveBar('Görev güncellendi.');
   } else {
-    taskData.id = Date.now().toString();
+    taskData.id        = Date.now().toString();
     taskData.createdAt = new Date().toISOString();
     tasks.push(taskData);
     addActivity('Yeni görev: "' + title + '"', 'green');
     addNotif('Yeni görev oluşturuldu: ' + title, 'new');
     showSaveBar('Görev oluşturuldu.');
   }
-
+ 
   if (taskData.status === 'done') {
     addNotif('"' + title + '" tamamlandı — PM onayı gerekiyor', 'warn');
   }
-
+ 
   persist();
   render();
   renderMyTasks();
@@ -708,17 +739,25 @@ function renderProjects() {
 function renderMyTasks() {
   var list = document.getElementById('myTasksList');
   if (!list) return;
-
-  /* ── 1. Filtrele: sadece bana atanan görevler ── */
+ 
   var profile = getMyProfile();
   var myName  = (profile.name || currentUser).toLowerCase().trim();
-
+  var myId    = profile.id || '';
+  var myEmail = (profile.email || '').toLowerCase().trim();
+ 
+  /* ── 1. Filtrele: ID öncelikli, sonra e-posta, son çare isim ── */
   var myTasks = tasks.filter(function(t) {
-    return t.assignee && t.assignee.toLowerCase().trim() === myName;
+    /* ID eşleşmesi (en güvenli) */
+    if (myId && t.assigneeId && t.assigneeId === myId) return true;
+    /* E-posta eşleşmesi */
+    if (myEmail && t.assigneeEmail && t.assigneeEmail.toLowerCase().trim() === myEmail) return true;
+    /* İsim eşleşmesi — YALNIZCA assigneeId yoksa uygula (eski görevler) */
+    if (!t.assigneeId && t.assignee && t.assignee.toLowerCase().trim() === myName) return true;
+    return false;
   });
-
+ 
   setText('myTaskCount', myTasks.length);
-
+ 
   if (myTasks.length === 0) {
     list.innerHTML = '<div class="db-empty-state">' +
       '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' +
@@ -727,117 +766,81 @@ function renderMyTasks() {
     '</div>';
     return;
   }
-
-  /* ── 2. Akıllı sıralama ──────────────────────
-     Kural 1 — Durum: aktif görevler önce (done en sona)
-     Kural 2 — Tarih: teslim tarihi en yakın olan üstte
-                      tarihi olmayanlar en sona
-     Kural 3 — Öncelik: aynı tarihte Acil>Yüksek>Orta>Düşük
-  ─────────────────────────────────────────────── */
+ 
+  /* ── 2. Akıllı sıralama ── */
   var priorityOrder = { urgent: 0, high: 1, med: 2, low: 3 };
   var statusOrder   = { todo: 0, inprogress: 0, pending_approval: 1, done: 2 };
-  var BIG = 99999999999999; /* tarihi olmayanlar için büyük sayı */
-
+  var BIG = 99999999999999;
+ 
   myTasks.sort(function(a, b) {
-    /* Önce durum grubu */
     var sDiff = (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
     if (sDiff !== 0) return sDiff;
-
-    /* Sonra tarih */
     var aDate = a.date ? new Date(a.date).getTime() : BIG;
     var bDate = b.date ? new Date(b.date).getTime() : BIG;
     if (aDate !== bDate) return aDate - bDate;
-
-    /* Aynı tarihse öncelik */
     var aPri = priorityOrder[a.priority] !== undefined ? priorityOrder[a.priority] : 99;
     var bPri = priorityOrder[b.priority] !== undefined ? priorityOrder[b.priority] : 99;
     return aPri - bPri;
   });
-
-  /* ── 3. Render ───────────────────────────────── */
+ 
+  /* ── 3. Render ── */
   var today    = new Date(); today.setHours(0, 0, 0, 0);
   var tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-
+ 
   var html = '<div class="db-mytasks-grid">';
-
-  /* Sıralama bilgisi başlık */
   html += '<div class="db-mytasks-sort-info">' +
     '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>' +
-    myTasks.length + ' görev  ' +
+    myTasks.length + ' görev' +
   '</div>';
-
+ 
   myTasks.forEach(function(task) {
-    var proj      = projects.find(function(p){ return p.id === task.projectId; });
-    var pLabel    = { urgent:'ACİL', high:'YÜKSEK', med:'ORTA', low:'DÜŞÜK' }[task.priority] || 'ORTA';
-    var statusLabel = {
-      todo:             'Yapılacak',
-      inprogress:       'Devam Ediyor',
-      done:             'Tamamlandı',
-      pending_approval: 'PM Onayı Bekliyor'
-    }[task.status] || task.status;
-    var statusCls = {
-      todo:             'db-mt-todo',
-      inprogress:       'db-mt-prog',
-      done:             'db-mt-done',
-      pending_approval: 'db-mt-pending'
-    }[task.status] || 'db-mt-todo';
-
-    /* Tarih durumu */
+    var proj        = projects.find(function(p){ return p.id === task.projectId; });
+    var pLabel      = { urgent:'ACİL', high:'YÜKSEK', med:'ORTA', low:'DÜŞÜK' }[task.priority] || 'ORTA';
+    var statusLabel = { todo:'Yapılacak', inprogress:'Devam Ediyor', done:'Tamamlandı', pending_approval:'PM Onayı Bekliyor' }[task.status] || task.status;
+    var statusCls   = { todo:'db-mt-todo', inprogress:'db-mt-prog', done:'db-mt-done', pending_approval:'db-mt-pending' }[task.status] || 'db-mt-todo';
+ 
     var dateHtml   = '';
     var isOverdue  = false;
     var isToday    = false;
     var isTomorrow = false;
-
+ 
     if (task.date) {
       var d = new Date(task.date); d.setHours(0, 0, 0, 0);
-      isOverdue  = d < today  && task.status !== 'done';
+      isOverdue  = d < today && task.status !== 'done';
       isToday    = d.getTime() === today.getTime();
       isTomorrow = d.getTime() === tomorrow.getTime();
-
+ 
       var dateLabel = isOverdue  ? '⚠ Gecikmiş — ' + formatDate(d) :
                       isToday    ? '🔴 Bugün teslim' :
                       isTomorrow ? '🟡 Yarın teslim' :
                       formatDate(d);
-
+ 
       dateHtml = '<span class="db-card-date' + (isOverdue ? ' overdue' : isToday ? ' today-due' : '') + '">' +
         '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
         dateLabel + '</span>';
     } else {
       dateHtml = '<span style="font-size:11.5px;color:var(--text-muted)">Tarih belirlenmedi</span>';
     }
-
-    /* Kart renk kenar — önceliğe göre */
+ 
     var borderColor = { urgent:'#dc2626', high:'#ef4444', med:'#f59e0b', low:'var(--green-600)' }[task.priority] || 'transparent';
-
+ 
     html += '<div class="db-mytask-card' + (task.status === 'done' ? ' db-card-done' : '') + '" style="border-left-color:' + borderColor + '">' +
-
-      /* Üst satır: öncelik + durum */
       '<div class="db-card-top">' +
         '<span class="priority-tag ' + task.priority + '">' + pLabel + '</span>' +
         '<span class="db-mt-status ' + statusCls + '">' + statusLabel + '</span>' +
       '</div>' +
-
-      /* Başlık */
       '<div class="db-card-title" style="margin:8px 0">' + escHtml(task.title) + '</div>' +
-
-      /* Açıklama */
       (task.desc ? '<div class="db-mytask-desc">' + escHtml(task.desc.substring(0, 100)) + (task.desc.length > 100 ? '...' : '') + '</div>' : '') +
-
-      /* İlerleme barı (devam ediyorsa) */
       (task.status === 'inprogress' && task.progress > 0
         ? '<div class="db-card-progress" style="margin-bottom:8px">' +
             '<div class="db-card-prog-bar"><div class="db-card-prog-fill" style="width:' + task.progress + '%"></div></div>' +
             '<span class="db-card-prog-label">%' + task.progress + '</span>' +
           '</div>'
         : '') +
-
-      /* Meta: tarih + proje */
       '<div class="db-card-meta" style="margin-top:6px;flex-wrap:wrap;gap:6px">' +
         dateHtml +
         (proj ? '<span class="db-proj-badge db-proj-' + proj.color + '">' + escHtml(proj.name) + '</span>' : '') +
       '</div>' +
-
-      /* Aksiyon butonları */
       '<div class="db-mytask-actions">' +
         '<button class="db-action-pill db-action-edit" onclick="openEditDrawer(\'' + task.id + '\')">Düzenle</button>' +
         (task.status === 'done'
@@ -847,14 +850,12 @@ function renderMyTasks() {
           ? '<button class="db-action-pill db-action-archive" onclick="archiveTask(\'' + task.id + '\')">Arşivle (PM)</button>'
           : '') +
       '</div>' +
-
     '</div>';
   });
-
+ 
   html += '</div>';
   list.innerHTML = html;
 }
-
 /* ── NOTIFICATIONS ────────────────────────────── */
 function addNotif(text, type) {
   notifications.unshift({
@@ -1376,20 +1377,52 @@ function closeInviteDrawer() {
 
 function saveInvite() {
   var name   = document.getElementById('inviteName').value.trim();
-  var email  = document.getElementById('inviteEmail').value.trim();
-  var phone  = document.getElementById('invitePhone') ? document.getElementById('invitePhone').value.trim() : '';
+  var email  = document.getElementById('inviteEmail')  ? document.getElementById('inviteEmail').value.trim()  : '';
+  var phone  = document.getElementById('invitePhone')  ? document.getElementById('invitePhone').value.trim()  : '';
   var github = document.getElementById('inviteGithub') ? document.getElementById('inviteGithub').value.trim() : '';
   var role   = document.getElementById('inviteRole').value;
+ 
   if (!name) { alert('Ad Soyad zorunludur.'); return; }
+ 
+  /* E-posta benzersizlik kontrolü — aynı e-posta ile ikinci kayıt engelle */
+  if (email) {
+    var emailLower = email.toLowerCase();
+    var dupEmail = teamMembers.find(function(m){
+      return m.email && m.email.toLowerCase() === emailLower;
+    });
+    if (dupEmail) {
+      alert('"' + dupEmail.name + '" adlı üye zaten bu e-posta ile kayıtlı.\nAynı e-posta ile iki farklı üye eklenemez.');
+      return;
+    }
+  }
+ 
+  /* İsim benzerlik uyarısı (engel değil, sadece uyarı) */
+  var nameLower = name.toLowerCase().trim();
+  var dupName = teamMembers.find(function(m){
+    return m.name && m.name.toLowerCase().trim() === nameLower;
+  });
+  if (dupName) {
+    var msg = '"' + dupName.name + '" adında zaten bir üye var.';
+    if (!email && !dupName.email) {
+      msg += '\n\nE-posta adresi girilmediğinde bu iki kişi birbirinden ayırt edilemez. Devam etmek istiyor musunuz?';
+      if (!confirm(msg)) return;
+    } else if (!email) {
+      msg += '\n\nMevcut üyenin e-postası var ancak yeni üye için e-posta girilmedi. Karışıklığı önlemek için e-posta eklemeniz önerilir. Yine de devam etmek istiyor musunuz?';
+      if (!confirm(msg)) return;
+    }
+    /* email varsa sorun yok — ID ile ayırt edilecek */
+  }
+ 
   var member = {
-    id: Date.now().toString(),
-    name: name,
-    email: email,
-    phone: phone,
-    github: github,
-    role: role,
+    id:       Date.now().toString(),
+    name:     name,
+    email:    email,
+    phone:    phone,
+    github:   github,
+    role:     role,
     joinedAt: new Date().toISOString()
   };
+ 
   teamMembers.push(member);
   localStorage.setItem('priorvia_team', JSON.stringify(teamMembers));
   addActivity('"' + name + '" ekibe davet edildi', 'blue');
@@ -1405,6 +1438,22 @@ function removeMember(id) {
   if (!confirm('"' + m.name + '" ekipten çıkarılacak. Emin misiniz?')) return;
   teamMembers = teamMembers.filter(function(x){ return x.id !== id; });
   localStorage.setItem('priorvia_team', JSON.stringify(teamMembers));
+
+  /* Görevlerdeki assigneeId'yi temizle — sadece bu üyeye ait olanlar */
+  var changed = false;
+  tasks = tasks.map(function(t) {
+    if (t.assigneeId && t.assigneeId === id) {
+      changed = true;
+      return Object.assign({}, t, {
+        assignee:     '',
+        assigneeId:   '',
+        assigneeEmail:''
+      });
+    }
+    return t;
+  });
+  if (changed) { persist(); render(); renderMyTasks(); }
+
   addActivity('"' + m.name + '" ekipten çıkarıldı', 'orange');
   renderTeam();
   showSaveBar('Üye çıkarıldı.');
@@ -1546,16 +1595,17 @@ if (!selProjId) {
 
   filteredMembers.forEach(function(m) {
     var totalTaskCount = tasks.filter(function(t){
+      if (t.assigneeId) return t.assigneeId === m.id;
       return t.assignee && t.assignee.toLowerCase() === m.name.toLowerCase();
     }).length;
 
     var projTaskCount = selProjId
       ? tasks.filter(function(t){
-          return t.assignee && t.assignee.toLowerCase() === m.name.toLowerCase()
-            && t.projectId === selProjId;
+          var match = t.assigneeId ? t.assigneeId === m.id
+                                   : (t.assignee && t.assignee.toLowerCase() === m.name.toLowerCase());
+          return match && t.projectId === selProjId;
         }).length
       : totalTaskCount;
-
     var ini    = m.name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
     var joined = new Date(m.joinedAt).toLocaleDateString('tr-TR', {
       day:'numeric', month:'short', year:'numeric'
@@ -1702,13 +1752,27 @@ function toggleProfileEdit() {
 function saveProfileFromModal() {
   var name = document.getElementById('prfName').value.trim();
   if (!name) { alert('Ad Soyad zorunludur.'); return; }
+ 
+  var existing  = getMyProfile();
+  var oldName   = existing.name || currentUser;
+  var profileId = existing.id || ('pm_' + Date.now());
+ 
   var data = {
+    id:     profileId,
     name:   name,
-    email:  document.getElementById('prfEmail').value.trim(),
-    phone:  document.getElementById('prfPhone').value.trim(),
-    github: document.getElementById('prfGithub').value.trim()
+    email:  document.getElementById('prfEmail').value.trim()  || existing.email  || '',
+    phone:  document.getElementById('prfPhone').value.trim()  || existing.phone  || '',
+    github: document.getElementById('prfGithub').value.trim() || existing.github || '',
+    role:   existing.role  || 'pm',
+    title:  existing.title || 'Proje Yöneticisi'
   };
+ 
   saveMyProfile(data);
+ 
+  if (oldName.trim().toLowerCase() !== name.trim().toLowerCase()) {
+    updateTasksAfterProfileRename(oldName, name, profileId, data.email);
+  }
+ 
   var ini = name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
   setText('prfViewAvatar', ini);
   setText('prfViewName', name);
@@ -1768,26 +1832,34 @@ function saveMyProfileFromView() {
   if (!nameEl) return;
   var name = nameEl.value.trim();
   if (!name) { alert('Ad Soyad zorunludur.'); return; }
-
+ 
   var existing = getMyProfile();
+  var oldName  = existing.name || currentUser;
+ 
+  /* Profil ID oluştur/koru */
+  var profileId = existing.id || ('pm_' + Date.now());
+ 
   var data = {
+    id:     profileId,
     name:   name,
-    email:  (document.getElementById('mprfEmail')  || {}).value.trim() || '',
-    phone:  (document.getElementById('mprfPhone')  || {}).value.trim() || '',
-    github: (document.getElementById('mprfGithub') || {}).value.trim() || '',
+    email:  (document.getElementById('mprfEmail')  || {}).value ? document.getElementById('mprfEmail').value.trim()  : (existing.email  || ''),
+    phone:  (document.getElementById('mprfPhone')  || {}).value ? document.getElementById('mprfPhone').value.trim()  : (existing.phone  || ''),
+    github: (document.getElementById('mprfGithub') || {}).value ? document.getElementById('mprfGithub').value.trim() : (existing.github || ''),
     role:   existing.role  || 'pm',
     title:  existing.title || 'Proje Yöneticisi'
   };
-
-  /* localStorage'a kaydet */
+ 
   localStorage.setItem('priorvia_myprofile', JSON.stringify(data));
   currentUser = data.name;
   localStorage.setItem('priorvia_user', data.name);
-
-  /* Sidebar'ı güncelle */
+ 
+  /* İsim değiştiyse görevleri güncelle */
+  if (oldName.trim().toLowerCase() !== name.trim().toLowerCase()) {
+    updateTasksAfterProfileRename(oldName, name, profileId, data.email);
+  }
+ 
   updateUserInfo();
-
-  /* Sol paneli kayıt sonrası güncelle */
+ 
   var ini = name.split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2) || '?';
   setText('mprfAvatarDisp', ini);
   setText('mprfNameDisp', name);
@@ -1795,11 +1867,8 @@ function saveMyProfileFromView() {
   setText('mprfListEmail', data.email || '—');
   setText('mprfListPhone', data.phone || '—');
   var ghEl = document.getElementById('mprfListGithub');
-  if (ghEl) {
-    ghEl.textContent = data.github || '—';
-    ghEl.href = data.github || '#';
-  }
-
+  if (ghEl) { ghEl.textContent = data.github || '—'; ghEl.href = data.github || '#'; }
+ 
   showSaveBar('Profil güncellendi.');
 }
 
@@ -1882,20 +1951,34 @@ function sttSaveProfile() {
   if (!nameEl) return;
   var name = nameEl.value.trim();
   if (!name) { alert('Ad Soyad zorunludur.'); return; }
+ 
+  var existing  = getMyProfile();
+  var oldName   = existing.name || currentUser;
+  var profileId = existing.id || ('pm_' + Date.now());
+ 
   var titleEl = document.getElementById('sttTitle');
   var roleEl  = document.getElementById('sttRoleSelect');
   var data = {
+    id:     profileId,
     name:   name,
-    email:  (document.getElementById('sttEmail')  || {}).value || '',
-    phone:  (document.getElementById('sttPhone')  || {}).value || '',
-    github: (document.getElementById('sttGithub') || {}).value || '',
-    title:  titleEl  ? titleEl.value.trim()  : '',
-    role:   roleEl   ? roleEl.value          : 'pm'
+    email:  (document.getElementById('sttEmail')  || {}).value || existing.email  || '',
+    phone:  (document.getElementById('sttPhone')  || {}).value || existing.phone  || '',
+    github: (document.getElementById('sttGithub') || {}).value || existing.github || '',
+    title:  titleEl ? titleEl.value.trim() : (existing.title || ''),
+    role:   roleEl  ? roleEl.value         : (existing.role  || 'pm')
   };
+ 
   saveMyProfile(data);
+ 
+  /* İsim değiştiyse görevleri güncelle */
+  if (oldName.trim().toLowerCase() !== name.trim().toLowerCase()) {
+    updateTasksAfterProfileRename(oldName, name, profileId, data.email);
+  }
+ 
   sttLoadProfile();
   showSaveBar('Profil güncellendi.');
 }
+ 
 
 /* ── Şifre Değiştir (simüle) ──────────────────── */
 function sttChangePassword() {
@@ -2563,6 +2646,42 @@ if (_origThemeToggle) {
     setTimeout(renderDashChart, 300);
   });
 }
+function migrateTaskAssigneeIds() {
+  /* Eski görevlerde assigneeId yoksa, isim eşleşmesiyle ekle */
+  var changed = false;
+  tasks = tasks.map(function(t) {
+    if (t.assigneeId) return t; /* zaten var */
+    if (!t.assignee)  return t; /* kimseye atanmamış */
+    var match = teamMembers.find(function(m){
+      return m.name && m.name.toLowerCase().trim() === t.assignee.toLowerCase().trim();
+    });
+    if (match) {
+      changed = true;
+      return Object.assign({}, t, {
+        assigneeId:    match.id    || '',
+        assigneeEmail: match.email || ''
+      });
+    }
+    return t;
+  });
+  /* Kendi profilime atanmış görevler için PM ID'sini ekle */
+  var myProfile = getMyProfile();
+  if (myProfile.id) {
+    tasks = tasks.map(function(t) {
+      if (t.assigneeId) return t;
+      if (!t.assignee)  return t;
+      if (t.assignee.toLowerCase().trim() === (myProfile.name || '').toLowerCase().trim()) {
+        changed = true;
+        return Object.assign({}, t, {
+          assigneeId:    myProfile.id,
+          assigneeEmail: myProfile.email || ''
+        });
+      }
+      return t;
+    });
+  }
+  if (changed) persist();
+}
 
 /* ── REVIEW YORUM SİSTEMİ ───────────────────────── */
 
@@ -2655,4 +2774,29 @@ function submitReviewComment() {
   }
 
   showSaveBar('Yorum eklendi.');
+}
+
+function updateTasksAfterProfileRename(oldName, newName, profileId, newEmail) {
+  var changed = false;
+  tasks = tasks.map(function(t) {
+    var matchById    = profileId && t.assigneeId && t.assigneeId === profileId;
+    var matchByEmail = newEmail  && t.assigneeEmail && t.assigneeEmail.toLowerCase() === newEmail.toLowerCase();
+    /* Eski isimdeki görevler: ID yoksa isimle eşleştir */
+    var matchByName  = !t.assigneeId && t.assignee && t.assignee.toLowerCase().trim() === oldName.toLowerCase().trim();
+ 
+    if (matchById || matchByEmail || matchByName) {
+      changed = true;
+      return Object.assign({}, t, {
+        assignee:     newName,
+        assigneeId:   profileId || t.assigneeId || '',
+        assigneeEmail:newEmail  || t.assigneeEmail || ''
+      });
+    }
+    return t;
+  });
+  if (changed) {
+    persist();
+    render();
+    renderMyTasks();
+  }
 }
