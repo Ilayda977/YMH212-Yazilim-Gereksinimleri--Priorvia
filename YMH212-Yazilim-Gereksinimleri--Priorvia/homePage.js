@@ -247,3 +247,16 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
 }
+// ---- Demo Video Modal ----
+const YT_VIDEO_ID = 'fye5T243iHo'; // ← YouTube URL'den al
+
+document.getElementById('demo-btn')?.addEventListener('click', () => {
+  const iframe = document.getElementById('yt-iframe');
+  iframe.src = `https://www.youtube.com/embed/${YT_VIDEO_ID}?autoplay=1`;
+  openModal('video-modal');
+});
+
+document.getElementById('close-video')?.addEventListener('click', () => {
+  document.getElementById('yt-iframe').src = ''; // videoyu durdur
+  closeModal('video-modal');
+});

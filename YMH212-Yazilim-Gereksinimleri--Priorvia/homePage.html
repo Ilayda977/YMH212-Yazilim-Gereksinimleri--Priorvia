@@ -52,10 +52,10 @@
       </p>
       <div class="hero-actions">
         <button class="btn-primary btn-lg" id="hero-signup">Hemen Başla </button>
-        <a href="#how" class="btn-outline-lg">
+        <button class="btn-outline-lg" id="demo-btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          Demo İzle
-        </a>
+            Demo İzle
+        </button>
       </div>
     </div>
 
@@ -349,6 +349,25 @@
       </form>
     </div>
   </div>
+
+<!-- VIDEO MODAL -->
+<div class="modal-overlay" id="video-modal">
+  <div class="modal modal--video">
+    <button class="modal-close" id="close-video">✕</button>
+    <div class="video-wrapper">
+      <iframe
+        id="yt-iframe"
+        width="100%"
+        height="100%"
+        src=""
+        title="Priorvia Tanıtım Videosu"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+      </iframe>
+    </div>
+  </div>
+</div>
 
   <!-- SUCCESS TOAST -->
   <div class="toast" id="toast">
